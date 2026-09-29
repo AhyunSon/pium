@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "피움",
+    "slug": "pium",
+    "scheme": "pium",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.pium.app",
+      "infoPlist": {
+        "NSMotionUsageDescription": "물주기 동작을 위해 기울기를 읽습니다.",
+        "NSBluetoothAlwaysUsageDescription": "화분 로봇과 연결합니다."
+      }
+    },
+    "android": {
+      "package": "com.pium.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FDFBD4",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sharing",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "물주기 동작을 위해 기울기를 읽습니다."
+        }
+      ],
+      [
+        "@sfourdrinier/react-native-ble-plx",
+        {
+          "bluetoothAlwaysPermission": "화분 로봇과 연결합니다."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
