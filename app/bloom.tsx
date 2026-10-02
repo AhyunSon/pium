@@ -12,6 +12,7 @@ export default function BloomScreen() {
 
   return (
     <Screen
+      safeBottom
       footer={
         <View style={styles.footer}>
           <Button label="오늘 기록 남기기" onPress={() => router.replace('/diary')} />

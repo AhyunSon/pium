@@ -1,6 +1,9 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
+
+const TAB_BAR_CONTENT_HEIGHT = 58;
 
 function Icon({ glyph, focused }: { glyph: string; focused: boolean }) {
   return (
@@ -11,6 +14,11 @@ function Icon({ glyph, focused }: { glyph: string; focused: boolean }) {
 }
 
 export default function TabsLayout() {
+  // 시스템 내비게이션 바(제스처 바/3버튼 바) 높이는 기종마다 다르므로
+  // 런타임에 읽어서 탭바 높이에 그대로 더한다.
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+
   return (
     <Tabs
       screenOptions={{
@@ -20,8 +28,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.gray[50],
           borderTopColor: colors.border,
-          height: 64,
+          height: TAB_BAR_CONTENT_HEIGHT + bottomInset,
           paddingTop: 6,
+          paddingBottom: bottomInset,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '500', marginTop: 2 },
       }}

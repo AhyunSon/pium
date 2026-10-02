@@ -149,7 +149,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   bannerText: { fontSize: 13, lineHeight: 20, color: colors.textMuted },
-  stageWrap: { flex: 1, minHeight: 260, borderRadius: 28, overflow: 'hidden', backgroundColor: colors.blue[600] },
+  // 작은 화면(세로 640dp 안팎)에서도 아래 버튼이 밀려나지 않도록 최소 높이를 낮게 둔다.
+  stageWrap: { flex: 1, minHeight: 160, borderRadius: 28, overflow: 'hidden', backgroundColor: colors.blue[600] },
   overlay: {
     position: 'absolute',
     top: 0,

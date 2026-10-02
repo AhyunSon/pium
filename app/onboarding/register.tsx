@@ -16,6 +16,7 @@ export default function RegisterScreen() {
 
   return (
     <Screen
+      safeBottom
       scroll
       title="사용자 등록"
       hint="연구 기록을 구분하는 데만 쓰입니다."

@@ -52,6 +52,7 @@ export default function SosScreen() {
 
   return (
     <Screen
+      safeBottom
       scroll
       title="관리자"
       hint="참가자에게는 보이지 않는 화면입니다."

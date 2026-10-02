@@ -15,6 +15,7 @@ export default function HabitScreen() {
 
   return (
     <Screen
+      safeBottom
       scroll
       title="목표 습관"
       hint="4일 동안 매일 지킬 행동 한 가지. 이 행동을 마친 뒤에만 물을 줍니다."

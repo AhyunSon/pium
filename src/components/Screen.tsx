@@ -19,9 +19,15 @@ type ScreenProps = {
   /** 화면 하단에 고정할 요소(버튼 등) */
   footer?: ReactNode;
   right?: ReactNode;
+  /**
+   * 탭바가 없는 화면(온보딩·개화·관리자)에서 true.
+   * 하단 시스템 바(제스처/3버튼) 높이만큼 아래 여백을 확보합니다.
+   * 탭 화면은 탭바가 이미 그 여백을 갖고 있으므로 기본값 false.
+   */
+  safeBottom?: boolean;
 };
 
-export function Screen({ title, hint, children, scroll, footer, right }: ScreenProps) {
+export function Screen({ title, hint, children, scroll, footer, right, safeBottom }: ScreenProps) {
   const header =
     title || hint ? (
       <View style={styles.header}>
@@ -60,7 +66,10 @@ export function Screen({ title, hint, children, scroll, footer, right }: ScreenP
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      style={styles.safe}
+      edges={safeBottom ? ['top', 'left', 'right', 'bottom'] : ['top', 'left', 'right']}
+    >
       {body}
     </SafeAreaView>
   );

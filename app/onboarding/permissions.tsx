@@ -59,6 +59,7 @@ export default function PermissionsScreen() {
 
   return (
     <Screen
+      safeBottom
       scroll
       title="권한"
       hint="알림은 쓰지 않습니다. 아래 두 가지만 필요합니다."

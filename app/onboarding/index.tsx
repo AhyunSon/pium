@@ -8,7 +8,7 @@ export default function OnboardingStart() {
   const router = useRouter();
 
   return (
-    <Screen footer={<Button label="시작하기" onPress={() => router.push('/onboarding/register')} />}>
+    <Screen safeBottom footer={<Button label="시작하기" onPress={() => router.push('/onboarding/register')} />}>
       <View style={styles.hero}>
         <Text style={styles.mark}>피움</Text>
         <Text style={styles.lead}>

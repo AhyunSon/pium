@@ -19,6 +19,7 @@ export default function HomeScreen() {
 
   return (
     <Screen
+      scroll
       title={state.profile ? `${state.profile.name} 님` : '홈'}
       hint={`${formatKoreanDate(today)}${day ? ` · ${day}일차` : ''}`}
     >

@@ -38,6 +38,51 @@ npx expo start --dev-client       # 그 다음 폰에서 「피움」 앱 실행
 - [ ] 오늘 기록 저장 → 월간 캘린더 표시 → 설정에서 CSV 내보내기
 - [ ] iOS는 아직 미확인 (Mac 필요)
 
+## 2026-09-30 (2일차)
+
+### 완료
+- 폰에서 앱 재실행 확인 (Metro dev-client + `adb reverse`)
+- 하단 탭바가 안드로이드 시스템 바(제스처/3버튼)와 겹치던 문제 수정: `app/(tabs)/_layout.tsx`에서 `useSafeAreaInsets()`로 기기별 하단 여백을 읽어 탭바 높이에 더함
+- 탭 없는 화면(온보딩·개화·관리자)에 `Screen`의 `safeBottom` 옵션 추가 → 하단 버튼이 시스템 바에 안 가려짐
+- 작은 화면 대비: 홈을 스크롤 가능하게, 물주기 물 영역 최소 높이 260→160
+
+### 아이콘 적용 방식(결정 대기)
+- 피그마 M3 키트 아이콘은 SVG로 내보내 `react-native-svg`로 그대로 렌더링(권장) 또는 Material Icons 이름으로 불러오기
+
+## 다른 컴퓨터(노트북)에서 이어서 작업하기
+
+### 1. 필수 설치
+- Git, Node.js LTS(20 이상), GitHub 로그인(`gh auth login` 또는 Git 자격 증명)
+- Cursor(또는 VS Code)
+
+### 2. 프로젝트 받기
+```powershell
+git clone https://github.com/AhyunSon/pium.git
+cd pium
+npm install --legacy-peer-deps     # react-dom 피어 충돌 때문에 이 옵션 필요
+npx expo-doctor                    # 21/21 나오면 정상
+```
+
+### 3. 화면만 볼 때 (가장 빠름, BLE는 가상 화분)
+```powershell
+npx expo start
+```
+폰에 Expo Go 설치 후 QR 스캔. 같은 Wi-Fi여야 함.
+
+### 4. 실제 BLE까지 테스트할 때
+개발 빌드 APK(`com.pium.app`)가 폰에 이미 설치돼 있으므로 **노트북에 Android SDK를 깔지 않아도 됨**.
+```powershell
+adb reverse tcp:8081 tcp:8081      # adb는 platform-tools만 받으면 됨
+npx expo start --dev-client
+```
+그 다음 폰에서 「피움」 앱 실행. 네이티브 의존성을 바꿔서 APK를 다시 만들어야 할 때만 JDK 17 + Android SDK가 필요(위 1일차 메모 참고)하거나, 그 대신 클라우드 빌드 `npx eas-cli@latest build --profile development --platform android`를 쓰면 됨.
+
+### 5. 작업 끝낼 때
+```powershell
+git add -A; git commit -m "메시지"; git push
+```
+다른 컴퓨터에서 시작할 때는 먼저 `git pull`.
+
 ### 알려진 사항
 - Expo Go에서는 BLE가 없어 가상 화분으로 동작 (홈 카드에 문구 표시). 실제 연결은 개발 빌드에서만
 - 첫 Gradle 빌드에서 `--build-cache` 쓰기 오류(AccessDenied)가 한 번 났고, `--no-build-cache`로 성공
