@@ -1,3 +1,4 @@
+import { toKstDateTime, toKstTimeHms } from './time';
 import type { AppState } from './types';
 
 function cell(v: unknown): string {
@@ -28,7 +29,7 @@ export function buildCsv(state: AppState): string {
         'water',
         w.id,
         w.date,
-        w.at.slice(11, 19),
+        toKstTimeHms(w.at),
         w.wiltPos,
         w.wiltPercent,
         w.deviceConnected,
@@ -79,8 +80,8 @@ export function buildCsv(state: AppState): string {
         d.q7_waterDelay,
         d.q7_laterReason ?? '',
         d.q8_freeText,
-        d.createdAt,
-        d.updatedAt,
+        toKstDateTime(d.createdAt),
+        toKstDateTime(d.updatedAt),
       ]),
     );
   }

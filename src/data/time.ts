@@ -1,11 +1,35 @@
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** 실험·내보내기 기준 타임존 (한국 표준시) */
+export const KST = 'Asia/Seoul';
+
+/** Asia/Seoul 기준 "YYYY-MM-DD HH:MM:SS" (sv-SE 로케일) */
+function toKstDateTimeParts(d: Date): { date: string; time: string } {
+  const s = d.toLocaleString('sv-SE', { timeZone: KST });
+  return { date: s.slice(0, 10), time: s.slice(11, 19) };
+}
+
 export function toDateKey(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export function toTimeKey(d: Date = new Date()): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** CSV 등: ISO 시각을 한국 시간 HH:MM:SS 로 */
+export function toKstTimeHms(isoOrDate: string | Date): string {
+  const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(d.getTime())) return '';
+  return toKstDateTimeParts(d).time;
+}
+
+/** CSV 등: ISO 시각을 한국 시간 YYYY-MM-DDTHH:MM:SS 로 */
+export function toKstDateTime(isoOrDate: string | Date): string {
+  const d = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(d.getTime())) return typeof isoOrDate === 'string' ? isoOrDate : '';
+  const { date, time } = toKstDateTimeParts(d);
+  return `${date}T${time}`;
 }
 
 export function parseDateKey(key: string): Date {
