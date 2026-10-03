@@ -19,15 +19,18 @@ export default function SurveyLayout() {
       initial={
         existing
           ? {
+              ...EMPTY_SURVEY,
               q1_noticedPetal: existing.q1_noticedPetal,
               q2_recalledHabit: existing.q2_recalledHabit,
               q3_petalStateWhenRecalled: existing.q3_petalStateWhenRecalled,
               q4_didHabit: existing.q4_didHabit,
-              q5_influences: existing.q5_influences,
+              q5_influences: existing.q5_influences.slice(0, 1),
               q5_reasons: existing.q5_reasons,
               q5_otherText: existing.q5_otherText,
               q6_startDelay: existing.q6_startDelay,
+              q6_laterReason: existing.q6_laterReason ?? '',
               q7_waterDelay: existing.q7_waterDelay,
+              q7_laterReason: existing.q7_laterReason ?? '',
               q8_freeText: existing.q8_freeText,
             }
           : EMPTY_SURVEY

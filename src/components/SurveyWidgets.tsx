@@ -47,16 +47,26 @@ export function CheckRow({
   selected,
   onPress,
   disabled,
+  align = 'left',
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
+  align?: 'left' | 'center';
 }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} style={styles.checkRow} accessibilityRole="checkbox" accessibilityState={{ checked: selected }}>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[styles.checkRow, align === 'center' && styles.checkRowCenter]}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
+    >
       {selected ? <CheckOnIcon width={24} height={24} /> : <CheckOffIcon width={24} height={24} />}
-      <Text style={[styles.checkLabel, selected && styles.checkLabelOn]}>{label}</Text>
+      <Text style={[styles.checkLabel, selected && styles.checkLabelOn, align === 'center' && styles.checkLabelCenter]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -69,6 +79,8 @@ export function CheckGroup<T extends string>({
   disabled,
   otherText,
   onOtherText,
+  textKey,
+  textPlaceholder = '내용을 입력해주세요.',
 }: {
   options: { key: T; label: string }[];
   value: T[];
@@ -77,7 +89,10 @@ export function CheckGroup<T extends string>({
   disabled?: boolean;
   otherText?: string;
   onOtherText?: (t: string) => void;
+  textKey?: T;
+  textPlaceholder?: string;
 }) {
+  const expandKey = textKey ?? ('other' as T);
   const toggle = (key: T) => {
     if (disabled) return;
     if (multiple) {
@@ -92,12 +107,12 @@ export function CheckGroup<T extends string>({
       {options.map((o) => (
         <View key={o.key} style={styles.optWrap}>
           <CheckRow label={o.label} selected={value.includes(o.key)} onPress={() => toggle(o.key)} disabled={disabled} />
-          {o.key === 'other' && value.includes(o.key) ? (
+          {o.key === expandKey && value.includes(o.key) ? (
             <View style={styles.other}>
               <UnderlineInput
                 value={otherText ?? ''}
                 onChangeText={onOtherText}
-                placeholder="내용을 입력해주세요."
+                placeholder={textPlaceholder}
                 editable={!disabled}
               />
             </View>
@@ -143,6 +158,7 @@ export function PetalScalePicker({
         label="기억나지 않음"
         selected={value === 'unknown'}
         disabled={disabled}
+        align="center"
         onPress={() => onChange('unknown')}
       />
     </View>
@@ -169,8 +185,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, width: '100%' },
+  checkRowCenter: { justifyContent: 'center', alignItems: 'center' },
   checkLabel: { ...type.bodyLarge, color: colors.grey[400], flex: 1 },
   checkLabelOn: { color: colors.primary[700] },
+  checkLabelCenter: { flex: 0 },
   optWrap: { width: '100%', gap: 9 },
   other: { paddingLeft: 32, width: '100%' },
   scaleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', paddingRight: 12 },

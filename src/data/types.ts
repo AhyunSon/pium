@@ -75,13 +75,15 @@ export type SurveyAnswers = {
   q2_recalledHabit: YesNo | null;
   q3_petalStateWhenRecalled: PetalScale | null;
   q4_didHabit: YesNo | null;
-  /** Q4=예 일 때. 다중 선택 */
+  /** Q4=예 일 때. 단일 선택 */
   q5_influences: Influence[];
   /** Q4=아니오 일 때. 단일 선택이지만 배열로 통일 */
   q5_reasons: Reason[];
   q5_otherText: string;
   q6_startDelay: Delay | null;
+  q6_laterReason: string;
   q7_waterDelay: Delay | null;
+  q7_laterReason: string;
   q8_freeText: string;
 };
 
@@ -94,7 +96,9 @@ export const EMPTY_SURVEY: SurveyAnswers = {
   q5_reasons: [],
   q5_otherText: '',
   q6_startDelay: null,
+  q6_laterReason: '',
   q7_waterDelay: null,
+  q7_laterReason: '',
   q8_freeText: '',
 };
 

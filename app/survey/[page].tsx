@@ -65,13 +65,12 @@ export default function SurveyPage() {
         <Button variant={prevVariant} label="이전" onPress={() => router.back()} style={styles.half} />
         <Button variant={nextVariant} label="다음" disabled={!locked && !canNext2} onPress={() => go(3)} style={styles.half} />
       </View>
-    ) : (
+    ) : mode === 'write' ? (
       <View style={styles.row}>
         <Button variant={prevVariant} label="이전" onPress={() => router.back()} style={styles.half} />
         <Button
           label="저장하기"
           variant={nextVariant}
-          disabled={locked}
           onPress={() => {
             saveDiary(date, answers);
             router.replace('/diary');
@@ -79,6 +78,8 @@ export default function SurveyPage() {
           style={styles.half}
         />
       </View>
+    ) : (
+      <Button variant={prevVariant} label="이전" onPress={() => router.back()} />
     );
 
   const right =
@@ -92,7 +93,11 @@ export default function SurveyPage() {
           label="저장"
           onPress={() => {
             saveDiary(date, answers);
-            setMode('review');
+            if (step === 3) {
+              router.replace('/diary');
+            } else {
+              setMode('review');
+            }
           }}
         />
       </View>
@@ -173,7 +178,9 @@ function Page2({ locked }: { locked: boolean }) {
               q5_influences: [],
               q5_reasons: [],
               q6_startDelay: null,
+              q6_laterReason: '',
               q7_waterDelay: null,
+              q7_laterReason: '',
             })
           }
         />
@@ -185,9 +192,8 @@ function Page2({ locked }: { locked: boolean }) {
               {`오늘 목표 행동을 시작하게 된 데\n영향을 준 것은 무엇이었나요?`}
             </SurveyQuestion>
             <CheckGroup
-              multiple
               options={INFLUENCES}
-              value={answers.q5_influences}
+              value={answers.q5_influences.slice(0, 1)}
               disabled={locked}
               otherText={answers.q5_otherText}
               onOtherText={(q5_otherText) => setAnswers({ q5_otherText })}
@@ -202,7 +208,16 @@ function Page2({ locked }: { locked: boolean }) {
               options={DELAYS}
               value={answers.q6_startDelay ? [answers.q6_startDelay] : []}
               disabled={locked}
-              onChange={(v) => setAnswers({ q6_startDelay: v[0] ?? null })}
+              textKey="later"
+              textPlaceholder="이유를 입력해주세요."
+              otherText={answers.q6_laterReason}
+              onOtherText={(q6_laterReason) => setAnswers({ q6_laterReason })}
+              onChange={(v) =>
+                setAnswers({
+                  q6_startDelay: (v[0] as Delay | undefined) ?? null,
+                  q6_laterReason: v[0] === 'later' ? answers.q6_laterReason : '',
+                })
+              }
             />
           </View>
           <View style={styles.block}>
@@ -213,7 +228,16 @@ function Page2({ locked }: { locked: boolean }) {
               options={DELAYS}
               value={answers.q7_waterDelay ? [answers.q7_waterDelay] : []}
               disabled={locked}
-              onChange={(v) => setAnswers({ q7_waterDelay: v[0] ?? null })}
+              textKey="later"
+              textPlaceholder="이유를 입력해주세요."
+              otherText={answers.q7_laterReason}
+              onOtherText={(q7_laterReason) => setAnswers({ q7_laterReason })}
+              onChange={(v) =>
+                setAnswers({
+                  q7_waterDelay: (v[0] as Delay | undefined) ?? null,
+                  q7_laterReason: v[0] === 'later' ? answers.q7_laterReason : '',
+                })
+              }
             />
           </View>
         </>
