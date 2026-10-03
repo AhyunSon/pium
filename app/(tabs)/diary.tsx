@@ -136,19 +136,21 @@ function DayCard({
     <Pressable onPress={onPress} style={styles.card}>
       <ImageBackground source={bg} style={styles.cardBg} imageStyle={styles.cardBgImg}>
         {header}
-        <Text style={styles.cardMsg}>
-          {kind === 'done' ? (
-            <>
-              {day}일차의 기록을{'\n'}
-              <Text style={styles.cardMsgEm}>남겼어요</Text>
-            </>
-          ) : (
-            <>
-              오늘의 기록을{'\n'}
-              <Text style={styles.cardMsgEm}>남겨주세요!</Text>
-            </>
-          )}
-        </Text>
+        <View style={styles.cardMid}>
+          <Text style={styles.cardMsg}>
+            {kind === 'done' ? (
+              <>
+                {day}일차의 기록을{'\n'}
+                <Text style={styles.cardMsgEm}>남겼어요</Text>
+              </>
+            ) : (
+              <>
+                오늘의 기록을{'\n'}
+                <Text style={styles.cardMsgEm}>남겨주세요!</Text>
+              </>
+            )}
+          </Text>
+        </View>
       </ImageBackground>
       <Button
         variant={kind === 'done' ? 'cardFootMuted' : 'cardFoot'}
@@ -186,8 +188,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     justifyContent: 'space-between',
   },
-  cardBg: { flex: 1, justifyContent: 'space-between', paddingTop: 16, paddingBottom: 12 },
+  cardBg: { flex: 1, paddingTop: 16, paddingBottom: 12 },
   cardBgImg: { borderRadius: 8 },
+  cardMid: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16 },
   doneChip: { paddingHorizontal: 6 },
   dayRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
