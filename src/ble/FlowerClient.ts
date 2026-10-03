@@ -68,7 +68,35 @@ function loadBlePlx(): BlePlxModule | null {
 
 /** 온보딩 권한 화면에서 미리 물어볼 때 씁니다. 연결 때도 같은 함수를 다시 거칩니다. */
 export async function requestBluetoothPermissions(): Promise<boolean> {
+  if (Platform.OS === 'ios') return requestIosBluetooth();
   return ensureAndroidPermissions();
+}
+
+async function requestIosBluetooth(): Promise<boolean> {
+  const mod = loadBlePlx();
+  if (!mod) return true;
+  const manager = new mod.BleManager();
+  try {
+    const waitState = () =>
+      new Promise<string>((resolve) => {
+        const sub = manager.onStateChange((s) => {
+          if (s !== 'Unknown' && s !== 'Resetting') {
+            sub.remove();
+            resolve(s);
+          }
+        }, true);
+        setTimeout(() => {
+          sub.remove();
+          manager.state().then(resolve).catch(() => resolve('Unknown'));
+        }, 2500);
+      });
+    const state = await waitState();
+    return state !== 'Unauthorized';
+  } catch {
+    return true;
+  } finally {
+    manager.destroy();
+  }
 }
 
 async function ensureAndroidPermissions(): Promise<boolean> {
@@ -136,7 +164,7 @@ class BleFlowerClient implements FlowerClient {
 
   async connect(deviceName: string): Promise<void> {
     if (this.state === 'scanning' || this.state === 'connecting') return;
-    const granted = await ensureAndroidPermissions();
+    const granted = await requestBluetoothPermissions();
     if (!granted) {
       this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
       return;

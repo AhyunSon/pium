@@ -13,9 +13,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.pium.app",
+      "appleTeamId": "W7CBNP6MYY",
       "infoPlist": {
         "NSMotionUsageDescription": "물주기 동작을 위해 기울기를 읽습니다.",
-        "NSBluetoothAlwaysUsageDescription": "화분 로봇과 연결합니다."
+        "NSBluetoothAlwaysUsageDescription": "화분 로봇과 연결합니다.",
+        "NSBluetoothPeripheralUsageDescription": "화분 로봇과 연결합니다."
       }
     },
     "android": {
@@ -51,6 +53,14 @@
         "@sfourdrinier/react-native-ble-plx",
         {
           "bluetoothAlwaysPermission": "화분 로봇과 연결합니다."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
         }
       ]
     ],
