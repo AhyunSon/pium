@@ -122,9 +122,11 @@ function DayCard({
     return (
       <View style={[styles.card, styles.cardPlain]}>
         {header}
-        <View style={styles.lockCircle}>
-          <LockIcon width={24} height={24} />
-          <Text style={styles.lockText}>{`아직 기록할 수\n없는 날짜예요`}</Text>
+        <View style={styles.cardMsgWrap}>
+          <View style={styles.lockCircle}>
+            <LockIcon width={24} height={24} />
+            <Text style={styles.lockText}>{`아직 기록할 수\n없는 날짜예요`}</Text>
+          </View>
         </View>
       </View>
     );
@@ -186,7 +188,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 12,
     paddingBottom: 12,
-    justifyContent: 'space-between',
   },
   cardBg: { flex: 1, paddingTop: 16, paddingBottom: 4 },
   cardMsgWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
