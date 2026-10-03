@@ -23,26 +23,34 @@ export default function HomeScreen() {
   const flower = useFlower();
   const day = state.profile ? studyDay(state.profile.studyStartDate, toDateKey()) : null;
 
+  const [snack, setSnack] = useState<string | null>(null);
+  const [tapping, setTapping] = useState(false);
+  const hideSnack = useCallback(() => setSnack(null), []);
+
+  const onConnect = async () => {
+    setTapping(true);
+    try {
+      const next = await flower.connect();
+      if (next === 'poweredOff') setSnack('블루투스를 켜 주세요');
+      if (next === 'unauthorized') setSnack('설정에서 블루투스를 허용해 주세요');
+    } finally {
+      setTapping(false);
+    }
+  };
+
   const connected = flower.connection === 'connected';
-  const busy = flower.connection === 'scanning' || flower.connection === 'connecting';
+  const busy = flower.connection === 'scanning' || flower.connection === 'connecting' || tapping;
   const failed = ['error', 'notFound', 'poweredOff', 'unauthorized', 'unavailable'].includes(flower.connection);
   const flowerState = connected ? flowerStateFromWilt(flower.wiltPercent) : 'disconnected';
   const canWater = connected;
   const waterDone = canWater && todayWater.length > 0 && flowerState === 'bloomed';
-  const [snack, setSnack] = useState<string | null>(null);
-  const hideSnack = useCallback(() => setSnack(null), []);
-
-  const onConnect = async () => {
-    const next = await flower.connect();
-    if (next === 'poweredOff') setSnack('블루투스를 켜 주세요');
-  };
 
   return (
     <View style={styles.page}>
       <Screen nav={{ left: 'logo', rightText: day ? `DAY ${pad2(day)} / ${pad2(STUDY_DAYS)}` : undefined }} scroll>
       {/* 상태 카드 */}
       <View style={styles.statusCard}>
-        <View style={StyleSheet.absoluteFill}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <BgStatusCard width="100%" height="100%" preserveAspectRatio="none" />
         </View>
         <View style={styles.habitBlock}>
@@ -140,6 +148,7 @@ const styles = StyleSheet.create({
     aspectRatio: 362 / 376,
     padding: 16,
     justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   habitBlock: { alignItems: 'flex-end', gap: 12, width: '100%' },
   habitKicker: { fontFamily: fonts.semiBold, fontSize: 13.85, lineHeight: 17, color: colors.primary[500] },
@@ -156,9 +165,9 @@ const styles = StyleSheet.create({
   current: { ...type.bodyLarge, color: colors.primary[500] },
   comment: { ...type.bodyLarge, color: colors.primary[700] },
   statusRight: { flex: 1, minWidth: 0, alignItems: 'flex-end', gap: 8 },
-  flowerWrap: { alignSelf: 'stretch', aspectRatio: 173 / 200 },
+  flowerWrap: { alignSelf: 'stretch', aspectRatio: 173 / 200, overflow: 'hidden' },
   flower: { width: '100%', height: '100%' },
-  connectBtn: { width: 112, flexShrink: 0 },
+  connectBtn: { width: 112, flexShrink: 0, zIndex: 2 },
 
   waterCard: {
     marginTop: 8,

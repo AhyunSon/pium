@@ -24,6 +24,10 @@ type FlowerValue = {
   lastBloomedAt: number | null;
   connect: () => Promise<ConnectionState>;
   disconnect: () => Promise<void>;
+  /** 온보딩에서 시스템 블루투스 창을 기존 매니저로 띄웁니다. */
+  warmUp: () => Promise<void>;
+  /** 기록 초기화 후 죽은 BleManager를 다시 만듭니다. */
+  recycle: () => void;
   send: (command: FlowerCommand) => Promise<void>;
   /** RESET 전송 후 WATER_POS 응답을 기다립니다. */
   water: () => Promise<WaterResult>;
@@ -38,7 +42,7 @@ type Waiters = { list: WaterWaiter[] };
 
 export function FlowerProvider({ children }: { children: ReactNode }) {
   const { state: appState } = useStore();
-  const [client] = useState<FlowerClient>(() => createFlowerClient());
+  const [client, setClient] = useState<FlowerClient>(() => createFlowerClient());
   const [waiters] = useState<Waiters>(() => ({ list: [] }));
 
   const [connection, setConnection] = useState<ConnectionState>(() => client.getState());
@@ -92,6 +96,18 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
   }, [client, appState.settings.deviceName]);
 
   const disconnect = useCallback(() => client.disconnect(), [client]);
+  const warmUp = useCallback(() => client.warmUp(), [client]);
+  const recycle = useCallback(() => {
+    const next = createFlowerClient();
+    setClient(next);
+    setConnection(next.getState());
+    setStatus(null);
+    setPos(null);
+    setLastSeenAt(null);
+    setLastError(null);
+    setStale(false);
+    setLastBloomedAt(null);
+  }, []);
   const send = useCallback((c: FlowerCommand) => client.send(c), [client]);
 
   const water = useCallback(async (): Promise<WaterResult> => {
@@ -138,10 +154,27 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
       lastBloomedAt,
       connect,
       disconnect,
+      warmUp,
+      recycle,
       send,
       water,
     }),
-    [client.kind, connection, status, pos, lastSeenAt, lastError, stale, lastBloomedAt, connect, disconnect, send, water],
+    [
+      client.kind,
+      connection,
+      status,
+      pos,
+      lastSeenAt,
+      lastError,
+      stale,
+      lastBloomedAt,
+      connect,
+      disconnect,
+      warmUp,
+      recycle,
+      send,
+      water,
+    ],
   );
 
   return <FlowerContext.Provider value={value}>{children}</FlowerContext.Provider>;

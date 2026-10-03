@@ -29,6 +29,8 @@ export interface FlowerClient {
   onStatus(listener: Listener<FlowerStatus>): () => void;
   onError(listener: Listener<string>): () => void;
   getState(): ConnectionState;
+  /** 시스템 블루투스 권한 창을 기존 매니저로 띄웁니다. 두 번째 BleManager를 만들지 않습니다. */
+  warmUp(): Promise<void>;
   connect(deviceName: string): Promise<void>;
   disconnect(): Promise<void>;
   send(command: FlowerCommand): Promise<void>;
@@ -66,37 +68,10 @@ function loadBlePlx(): BlePlxModule | null {
   }
 }
 
-/** 온보딩 권한 화면에서 미리 물어볼 때 씁니다. 연결 때도 같은 함수를 다시 거칩니다. */
+/** 온보딩·연결 시 Android 런타임 권한. iOS는 기존 BleManager.warmUp()이 시스템 창을 띄웁니다. */
 export async function requestBluetoothPermissions(): Promise<boolean> {
-  if (Platform.OS === 'ios') return requestIosBluetooth();
+  if (Platform.OS === 'ios') return true;
   return ensureAndroidPermissions();
-}
-
-async function requestIosBluetooth(): Promise<boolean> {
-  const mod = loadBlePlx();
-  if (!mod) return true;
-  const manager = new mod.BleManager();
-  try {
-    const waitState = () =>
-      new Promise<string>((resolve) => {
-        const sub = manager.onStateChange((s) => {
-          if (s !== 'Unknown' && s !== 'Resetting') {
-            sub.remove();
-            resolve(s);
-          }
-        }, true);
-        setTimeout(() => {
-          sub.remove();
-          manager.state().then(resolve).catch(() => resolve('Unknown'));
-        }, 2500);
-      });
-    const state = await waitState();
-    return state !== 'Unauthorized';
-  } catch {
-    return true;
-  } finally {
-    manager.destroy();
-  }
 }
 
 async function ensureAndroidPermissions(): Promise<boolean> {
@@ -125,6 +100,8 @@ class BleFlowerClient implements FlowerClient {
   private disconnectSub: { remove: () => void } | null = null;
   private stateSub: { remove: () => void } | null = null;
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private scanFinish: ((id: string | null) => void) | null = null;
+  private connectGen = 0;
 
   constructor(private mod: BlePlxModule) {
     this.manager = new mod.BleManager();
@@ -162,34 +139,99 @@ class BleFlowerClient implements FlowerClient {
     this.setState(state);
   }
 
+  async warmUp(): Promise<void> {
+    await this.waitBleState();
+  }
+
+  private waitBleState(): Promise<string> {
+    return new Promise((resolve) => {
+      let done = false;
+      let sub: { remove: () => void } = { remove: () => {} };
+      const finish = (s: string) => {
+        if (done) return;
+        done = true;
+        sub.remove();
+        resolve(s);
+      };
+      sub = this.manager.onStateChange((s) => {
+        if (s !== 'Unknown' && s !== 'Resetting') finish(s);
+      }, true);
+      this.manager
+        .state()
+        .then((s) => {
+          if (s !== 'Unknown' && s !== 'Resetting') finish(s);
+        })
+        .catch(() => {});
+      setTimeout(() => {
+        this.manager
+          .state()
+          .then((s) => finish(s))
+          .catch(() => finish('Unknown'));
+      }, 4000);
+    });
+  }
+
+  private abortScan() {
+    const finish = this.scanFinish;
+    this.scanFinish = null;
+    if (this.scanTimer) {
+      clearTimeout(this.scanTimer);
+      this.scanTimer = null;
+    }
+    this.manager.stopDeviceScan().catch(() => {});
+    finish?.(null);
+  }
+
   async connect(deviceName: string): Promise<void> {
-    if (this.state === 'scanning' || this.state === 'connecting') return;
-    const granted = await requestBluetoothPermissions();
-    if (!granted) {
-      this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
+    this.connectGen += 1;
+    const gen = this.connectGen;
+    this.abortScan();
+    if (this.deviceId) {
+      await this.manager.cancelDeviceConnection(this.deviceId).catch(() => {});
+      this.cleanupDevice();
+    }
+
+    if (Platform.OS === 'android') {
+      const granted = await ensureAndroidPermissions();
+      if (!granted) {
+        this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
+        return;
+      }
+    }
+    if (gen !== this.connectGen) return;
+
+    const bleState = await this.waitBleState();
+    if (gen !== this.connectGen) return;
+    if (bleState === 'PoweredOff') {
+      this.fail('블루투스를 켜 주세요.', 'poweredOff');
       return;
     }
-    const bleState = await this.manager.state();
-    if (bleState === 'PoweredOff') {
-      this.fail('블루투스가 꺼져 있습니다.', 'poweredOff');
+    if (bleState === 'Unauthorized') {
+      this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
       return;
     }
 
     this.setState('scanning');
     await this.manager.stopDeviceScan().catch(() => {});
+    if (gen !== this.connectGen) return;
 
     const found = await new Promise<string | null>((resolve) => {
       let settled = false;
       const finish = (id: string | null) => {
         if (settled) return;
         settled = true;
+        this.scanFinish = null;
         if (this.scanTimer) clearTimeout(this.scanTimer);
+        this.scanTimer = null;
         this.manager.stopDeviceScan().catch(() => {});
         resolve(id);
       };
+      this.scanFinish = finish;
       this.scanTimer = setTimeout(() => finish(null), SCAN_TIMEOUT_MS);
+      // iOS는 광고에 서비스 UUID가 없으면 필터 스캔이 전부 빠집니다. 이름으로 거릅니다.
+      const scanUuids = Platform.OS === 'ios' ? null : [FLOWER_SERVICE_UUID];
       this.manager
-        .startDeviceScan([FLOWER_SERVICE_UUID], { allowDuplicates: false }, (error, device) => {
+        .startDeviceScan(scanUuids, { allowDuplicates: false }, (error, device) => {
           if (error) {
             this.errorEmitter.emit(error.message);
             finish(null);
@@ -205,6 +247,7 @@ class BleFlowerClient implements FlowerClient {
         });
     });
 
+    if (gen !== this.connectGen) return;
     if (!found) {
       this.setState('notFound');
       return;
@@ -250,6 +293,11 @@ class BleFlowerClient implements FlowerClient {
         // notify로 곧 옵니다
       }
 
+      if (gen !== this.connectGen) {
+        this.cleanupDevice();
+        await this.manager.cancelDeviceConnection(found).catch(() => {});
+        return;
+      }
       this.setState('connected');
     } catch (e) {
       this.cleanupDevice();
@@ -266,6 +314,8 @@ class BleFlowerClient implements FlowerClient {
   }
 
   async disconnect(): Promise<void> {
+    this.connectGen += 1;
+    this.abortScan();
     const id = this.deviceId;
     this.cleanupDevice();
     if (id) await this.manager.cancelDeviceConnection(id).catch(() => {});
@@ -283,9 +333,10 @@ class BleFlowerClient implements FlowerClient {
   }
 
   destroy() {
+    this.connectGen += 1;
+    this.abortScan();
     this.cleanupDevice();
     this.stateSub?.remove();
-    if (this.scanTimer) clearTimeout(this.scanTimer);
     this.manager.destroy();
   }
 }
@@ -327,6 +378,8 @@ class MockFlowerClient implements FlowerClient {
     const sw = this.pos <= 0 ? 1 : 0;
     this.statusEmitter.emit(parseStatus(`${this.motor} POS:${this.pos} SW:${sw}`));
   }
+
+  async warmUp(): Promise<void> {}
 
   async connect(): Promise<void> {
     if (this.state === 'connected') return;

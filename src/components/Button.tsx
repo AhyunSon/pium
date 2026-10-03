@@ -1,6 +1,5 @@
 import { ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
-import { Pressable } from 'react-native-gesture-handler';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 import { colors } from '../theme/colors';
 import { type } from '../theme/typography';
 
@@ -83,6 +82,7 @@ export function Button({
       accessibilityRole="button"
       onPress={onPress}
       disabled={isDisabled}
+      hitSlop={8}
       android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
       style={({ pressed }) => [wrap, pressed && !isDisabled && v.pressed, style]}
     >
