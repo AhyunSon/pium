@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image, StyleSheet, View } from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
@@ -9,11 +9,15 @@ import { colors } from '../../src/theme/colors';
 export default function GoDiaryScreen() {
   const router = useRouter();
   const { date, mode } = useSurveyDraft();
+  const { from } = useLocalSearchParams<{ from?: string }>();
 
   return (
     <Screen
       safeBottom
-      nav={{ left: 'close', onLeft: () => router.back() }}
+      nav={{
+        left: 'close',
+        onLeft: () => router.dismissTo(from === 'water' ? '/home' : '/diary'),
+      }}
       footer={
         <Button
           label="시작하기"
@@ -24,27 +28,30 @@ export default function GoDiaryScreen() {
       }
       contentStyle={styles.content}
     >
-      <Image source={require('../../assets/images/bg-godiary.png')} style={styles.bg} resizeMode="contain" />
       <Title
         align="center"
         title="오늘의 FIUM은 어땠나요?"
         subtitle={'8개의 질문으로\n오늘의 경험을 돌아봐요.'}
         subtitleColor={colors.grey[500]}
       />
-      <View />
+      <View style={styles.hero} pointerEvents="none">
+        <Image source={require('../../assets/images/bg-godiary.png')} style={styles.bg} resizeMode="contain" />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, alignItems: 'center', justifyContent: 'space-between' },
+  content: { flex: 1, alignItems: 'center' },
+  hero: {
+    flex: 1,
+    alignSelf: 'stretch',
+    marginHorizontal: -20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bg: {
-    position: 'absolute',
-    left: -20,
-    right: -20,
-    top: 40,
-    bottom: 80,
-    width: undefined,
-    height: undefined,
+    width: '100%',
+    height: '100%',
   },
 });

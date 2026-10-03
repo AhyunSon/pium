@@ -44,7 +44,14 @@ export function Chip({
 }
 
 const styles = StyleSheet.create({
-  base: { paddingHorizontal: 10, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
+  base: {
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+  },
   filled: { height: 20, backgroundColor: colors.primary[500] },
   blue: { height: 20, backgroundColor: colors.secondary[400] },
   outline: { height: 22, borderWidth: 1, borderColor: colors.grey[500] },
