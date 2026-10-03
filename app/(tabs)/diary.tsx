@@ -1,161 +1,215 @@
-import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
-import { Chips } from '../../src/components/Chips';
-import { Field, Input } from '../../src/components/Field';
+import { Chip } from '../../src/components/Chip';
 import { Screen } from '../../src/components/Screen';
-import { Slider } from '../../src/components/Slider';
 import { useStore } from '../../src/data/store';
-import { formatKoreanDate, toDateKey, toTimeKey } from '../../src/data/time';
-import type { DiaryEntry, Trigger, WaterEvent } from '../../src/data/types';
+import { formatDiaryDate, pad2, studyDates, studyDay, toDateKey } from '../../src/data/time';
+import { STUDY_DAYS } from '../../src/data/types';
 import { colors } from '../../src/theme/colors';
+import { LockIcon } from '../../src/theme/icons';
+import { fonts, type } from '../../src/theme/typography';
 
-const TRIGGERS: readonly Trigger[] = ['스스로 기억', '화분을 보고', '정해진 시간', '다른 사람', '기타'];
-const DID_OPTIONS = ['했다', '못 했다'] as const;
-type Did = (typeof DID_OPTIONS)[number];
+type CardKind = 'done' | 'write' | 'locked';
 
-export default function DiaryScreen() {
-  const { state, todayDiary, todayWater, saveDiary } = useStore();
-  const today = toDateKey();
-
-  const lastWater = useMemo(
-    () => [...todayWater].sort((a, b) => b.at.localeCompare(a.at))[0] ?? null,
-    [todayWater],
-  );
-  const autoWilt = lastWater?.wiltPercent ?? null;
-
-  // 저장된 기록이 바뀌면 폼을 새로 그립니다 (key로 remount)
-  const formKey = `${todayDiary?.updatedAt ?? 'new'}-${autoWilt ?? 'x'}`;
-
-  return (
-    <DiaryForm
-      key={formKey}
-      today={today}
-      habit={state.profile?.habit ?? ''}
-      entry={todayDiary}
-      water={todayWater}
-      autoWilt={autoWilt}
-      onSave={saveDiary}
-    />
-  );
+function kindFor(date: string, today: string, hasEntry: boolean, start: string): CardKind {
+  if (hasEntry) return 'done';
+  if (date > today) return 'locked';
+  if (date < start) return 'locked';
+  return 'write';
 }
 
-type FormProps = {
-  today: string;
-  habit: string;
-  entry: DiaryEntry | null;
-  water: WaterEvent[];
-  autoWilt: number | null;
-  onSave: (entry: Omit<DiaryEntry, 'id' | 'createdAt' | 'updatedAt'>) => DiaryEntry;
-};
+export default function DiaryScreen() {
+  const router = useRouter();
+  const { state } = useStore();
+  const today = toDateKey();
+  const start = state.profile?.studyStartDate ?? today;
+  const day = state.profile ? studyDay(start, today) : null;
+  const days = studyDates(start, STUDY_DAYS);
 
-function DiaryForm({ today, habit, entry, water, autoWilt, onSave }: FormProps) {
-  const [did, setDid] = useState<Did | null>(
-    entry?.didHabit === null || entry?.didHabit === undefined ? null : entry.didHabit ? '했다' : '못 했다',
-  );
-  const [startTime, setStartTime] = useState(entry?.startTime ?? '');
-  const [trigger, setTrigger] = useState<Trigger | null>(entry?.trigger ?? null);
-  const [triggerNote, setTriggerNote] = useState(entry?.triggerNote ?? '');
-  const [wilt, setWilt] = useState<number>(entry?.wiltAtWater ?? autoWilt ?? 50);
-  const [note, setNote] = useState(entry?.note ?? '');
-  const [savedAt, setSavedAt] = useState<string | null>(entry?.updatedAt ?? null);
-
-  const save = () => {
-    const saved = onSave({
-      date: today,
-      didHabit: did === null ? null : did === '했다',
-      startTime: startTime.trim() || null,
-      trigger,
-      triggerNote: triggerNote.trim(),
-      wiltAtWater: did === '했다' ? wilt : null,
-      note: note.trim(),
+  const open = (date: string, hasEntry: boolean) => {
+    router.push({
+      pathname: hasEntry ? '/survey/1' : '/survey',
+      params: { date, mode: hasEntry ? 'review' : 'write' },
     });
-    setSavedAt(saved.updatedAt);
   };
 
   return (
-    <Screen
-      scroll
-      title="오늘"
-      hint={`${formatKoreanDate(today)} · ${habit}`}
-      footer={<Button label={entry ? '수정 저장' : '저장'} onPress={save} disabled={did === null} />}
-    >
-      {water.length > 0 ? (
-        <Card kicker="오늘 물주기" tone="soft">
-          {water.map((w) => (
-            <Text key={w.id} style={styles.waterLine}>
-              {w.at.slice(11, 16)} · {w.wiltPercent !== null ? `꽃 ${w.wiltPercent}% 시듦` : '꽃 상태 기록 없음'}
-              {w.deviceConnected ? '' : ' · 미연결'}
-            </Text>
-          ))}
-        </Card>
-      ) : null}
-
-      <Field label="목표 행동을 했나요?">
-        <Chips options={DID_OPTIONS} value={did} onChange={setDid} />
-      </Field>
-
-      {did === '했다' ? (
-        <>
-          <Field label="시작한 시각" helper="대략이어도 괜찮습니다">
-            <View style={styles.timeRow}>
-              <Input
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="예: 21:30"
-                keyboardType="numbers-and-punctuation"
-                style={styles.timeInput}
-                maxLength={5}
-              />
-              <Button small variant="secondary" label="지금" onPress={() => setStartTime(toTimeKey())} />
+    <Screen nav={{ left: 'logo', rightText: day ? `DAY ${pad2(day)} / ${pad2(STUDY_DAYS)}` : undefined }}>
+      <View style={styles.grid}>
+        <View style={styles.topRow}>
+          <View style={styles.intro}>
+            <View style={styles.introText}>
+              <Text style={styles.introTitle}>다이어리</Text>
+              <Text style={styles.introSub}>Four Days with FIUM</Text>
+              <View style={styles.introRule} />
+              <Text style={styles.introBody}>{`FIUM과 함께한\n4일간의 기록을\n확인해보세요.`}</Text>
             </View>
-          </Field>
-
-          <Field label="무엇이 시작하게 했나요?">
-            <Chips options={TRIGGERS} value={trigger} onChange={setTrigger} />
-            {trigger === '기타' || trigger === '다른 사람' ? (
-              <Input
-                value={triggerNote}
-                onChangeText={setTriggerNote}
-                placeholder="조금 더 적어 주세요"
-                style={styles.noteInput}
+            <Image source={require('../../assets/images/flower-falling.png')} style={styles.introFlower} resizeMode="contain" />
+          </View>
+          <View style={styles.col}>
+            {days.slice(0, 2).map((d) => {
+              const hasEntry = state.diary.some((e) => e.date === d.date);
+              const kind = kindFor(d.date, today, hasEntry, start);
+              return (
+                <DayCard
+                  key={d.date}
+                  day={d.day}
+                  date={d.date}
+                  kind={kind}
+                  onPress={() => {
+                    if (kind === 'locked') return;
+                    open(d.date, hasEntry);
+                  }}
+                />
+              );
+            })}
+          </View>
+        </View>
+        <View style={styles.bottomRow}>
+          {days.slice(2).map((d) => {
+            const hasEntry = state.diary.some((e) => e.date === d.date);
+            const kind = kindFor(d.date, today, hasEntry, start);
+            return (
+              <DayCard
+                key={d.date}
+                day={d.day}
+                date={d.date}
+                kind={kind}
+                onPress={() => {
+                  if (kind === 'locked') return;
+                  open(d.date, hasEntry);
+                }}
               />
-            ) : null}
-          </Field>
-
-          <Field
-            label="물을 줄 때 꽃은 얼마나 시들어 있었나요?"
-            helper={
-              autoWilt !== null
-                ? `화분이 보낸 값 ${autoWilt}% 를 기준으로 채웠습니다. 눈으로 본 느낌으로 고쳐도 됩니다.`
-                : '눈으로 본 느낌대로'
-            }
-          >
-            <Slider value={wilt} onChange={setWilt} leftLabel="활짝 핌" rightLabel="완전히 시듦" />
-          </Field>
-
-          <Field label="메모">
-            <Input value={note} onChangeText={setNote} placeholder="선택" multiline />
-          </Field>
-        </>
-      ) : null}
-
-      {did === '못 했다' ? (
-        <Field label="이유가 있다면">
-          <Input value={note} onChangeText={setNote} placeholder="선택" multiline />
-        </Field>
-      ) : null}
-
-      {savedAt ? <Text style={styles.saved}>저장됨 · {savedAt.slice(11, 16)}</Text> : null}
+            );
+          })}
+        </View>
+      </View>
     </Screen>
   );
 }
 
+function DayCard({
+  day,
+  date,
+  kind,
+  onPress,
+}: {
+  day: number;
+  date: string;
+  kind: CardKind;
+  onPress: () => void;
+}) {
+  const { short, weekday } = formatDiaryDate(date);
+  const header = (
+    <View style={styles.cardHead}>
+      <View>
+        <View style={styles.dayRow}>
+          <Text style={styles.dayLabel}>DAY</Text>
+          <Text style={styles.dayNum}>{pad2(day)}</Text>
+        </View>
+        <View style={styles.dateRow}>
+          <Text style={styles.dateShort}>{short}</Text>
+          <Text style={styles.dateWeek}>({weekday})</Text>
+        </View>
+      </View>
+      {kind === 'done' ? <Chip label="완료됨" tone="outline" style={styles.doneChip} /> : null}
+      {kind === 'write' ? <Chip label="미완료" /> : null}
+    </View>
+  );
+
+  if (kind === 'locked') {
+    return (
+      <View style={[styles.card, styles.cardPlain]}>
+        {header}
+        <View style={styles.lockCircle}>
+          <LockIcon width={24} height={24} />
+          <Text style={styles.lockText}>{`아직 기록할 수\n없는 날짜예요`}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const bg = kind === 'done' ? require('../../assets/images/bg-daycard-done.png') : require('../../assets/images/bg-daycard-write.png');
+
+  return (
+    <Pressable onPress={onPress} style={styles.card}>
+      <ImageBackground source={bg} style={styles.cardBg} imageStyle={styles.cardBgImg}>
+        {header}
+        <Text style={styles.cardMsg}>
+          {kind === 'done' ? (
+            <>
+              {day}일차의 기록을{'\n'}
+              <Text style={styles.cardMsgEm}>남겼어요</Text>
+            </>
+          ) : (
+            <>
+              오늘의 기록을{'\n'}
+              <Text style={styles.cardMsgEm}>남겨주세요!</Text>
+            </>
+          )}
+        </Text>
+      </ImageBackground>
+      <Button
+        variant={kind === 'done' ? 'cardFootMuted' : 'cardFoot'}
+        label={kind === 'done' ? '작성한 답변 보기' : '작성하러 가기'}
+        onPress={onPress}
+      />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  waterLine: { fontSize: 14, color: colors.yellow[700], lineHeight: 22 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  timeInput: { flex: 1 },
-  noteInput: { marginTop: 10 },
-  saved: { fontSize: 12, color: colors.gray[300], textAlign: 'center', marginTop: 4 },
+  grid: { flex: 1, gap: 12 },
+  topRow: { flex: 2, flexDirection: 'row', gap: 8 },
+  bottomRow: { flex: 1, flexDirection: 'row', gap: 8 },
+  col: { flex: 1, gap: 8 },
+  intro: {
+    flex: 1,
+    backgroundColor: colors.primary[100],
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    justifyContent: 'space-between',
+  },
+  introText: { gap: 3 },
+  introTitle: { ...type.title, color: colors.primary[700] },
+  introSub: { ...type.caption, color: colors.primary[500] },
+  introRule: { width: 28, height: 1, backgroundColor: colors.primary[400], marginVertical: 12 },
+  introBody: { ...type.bodySmall, color: colors.primary[700] },
+  introFlower: { width: 138, height: 167, alignSelf: 'center' },
+  card: { flex: 1, minHeight: 160, borderRadius: 8, overflow: 'hidden' },
+  cardPlain: {
+    backgroundColor: colors.grey.white,
+    paddingTop: 16,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    justifyContent: 'space-between',
+  },
+  cardBg: { flex: 1, justifyContent: 'space-between', paddingTop: 16, paddingBottom: 12 },
+  cardBgImg: { borderRadius: 8 },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16 },
+  doneChip: { paddingHorizontal: 6 },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dayLabel: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 16, color: colors.primary[700] },
+  dayNum: { fontFamily: fonts.semiBold, fontSize: 15, lineHeight: 16, color: colors.grey[700] },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 3 },
+  dateShort: { ...type.caption, color: colors.grey[400] },
+  dateWeek: { ...type.caption, color: colors.grey[400] },
+  cardMsg: { ...type.bodyLarge, color: colors.primary[700], textAlign: 'center', alignSelf: 'center' },
+  cardMsgEm: { fontFamily: fonts.semiBold },
+  lockCircle: {
+    width: 116,
+    height: 116,
+    borderRadius: 64,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.grey[500],
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    gap: 8,
+    paddingBottom: 8,
+  },
+  lockText: { ...type.bodySmall, color: colors.grey[500], textAlign: 'center' },
 });

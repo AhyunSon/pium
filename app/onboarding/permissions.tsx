@@ -1,58 +1,43 @@
 import { DeviceMotion } from 'expo-sensors';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useFlower } from '../../src/ble/FlowerProvider';
+import { ReactNode, useState } from 'react';
+import { PermissionsAndroid, Platform, StyleSheet, Text, View } from 'react-native';
+import { requestBluetoothPermissions } from '../../src/ble/FlowerClient';
 import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
 import { Screen } from '../../src/components/Screen';
+import { Title } from '../../src/components/Title';
 import { useOnboardingDraft } from '../../src/data/onboardingDraft';
 import { useStore } from '../../src/data/store';
 import { colors } from '../../src/theme/colors';
+import { PermActivityIcon, PermBluetoothIcon, PermStorageIcon } from '../../src/theme/icons';
+import { type } from '../../src/theme/typography';
 
-type Status = 'idle' | 'ok' | 'denied' | 'skip';
-
+/** 피그마 Permission: 블루투스 · 신체 활동 · 저장소 안내 후 「설정하기」 */
 export default function PermissionsScreen() {
   const router = useRouter();
   const { draft } = useOnboardingDraft();
   const { saveProfile } = useStore();
-  const flower = useFlower();
-  const [motion, setMotion] = useState<Status>('idle');
-  const [ble, setBle] = useState<Status>('idle');
   const [busy, setBusy] = useState(false);
 
-  const askMotion = async () => {
-    try {
-      const available = await DeviceMotion.isAvailableAsync();
-      if (!available) {
-        setMotion('skip');
-        return;
-      }
-      const res = await DeviceMotion.requestPermissionsAsync();
-      setMotion(res.granted ? 'ok' : 'denied');
-    } catch {
-      setMotion('skip');
-    }
-  };
-
-  const askBle = async () => {
+  const askAll = async () => {
     setBusy(true);
     try {
-      await flower.connect();
-      setBle(flower.kind === 'mock' ? 'skip' : 'ok');
-    } catch {
-      setBle('denied');
+      // 거부해도 막지 않는다. 홈/물주기에서 필요할 때 다시 묻는다.
+      await requestBluetoothPermissions().catch(() => false);
+      if (Platform.OS === 'android' && Number(Platform.Version) >= 29) {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION).catch(() => null);
+      }
+      const motionOk = await DeviceMotion.isAvailableAsync().catch(() => false);
+      if (motionOk) await DeviceMotion.requestPermissionsAsync().catch(() => null);
+      // 저장소: 앱 전용 폴더에 쓰므로 별도 권한이 필요 없다. 안내만 한다.
     } finally {
       setBusy(false);
     }
-  };
-
-  const finish = () => {
     saveProfile({
       name: draft.name.trim(),
-      gender: draft.gender,
       ageGroup: draft.ageGroup,
       habit: draft.habit.trim(),
+      deviceNumber: draft.deviceNumber.trim(),
     });
     router.replace('/home');
   };
@@ -60,51 +45,48 @@ export default function PermissionsScreen() {
   return (
     <Screen
       safeBottom
-      scroll
-      title="권한"
-      hint="알림은 쓰지 않습니다. 아래 두 가지만 필요합니다."
-      footer={<Button label="홈으로" onPress={finish} />}
+      nav={{ left: 'back', onLeft: () => router.back() }}
+      footer={<Button label="설정하기" onPress={askAll} loading={busy} />}
     >
-      <Card kicker="동작 센서">
-        <Text style={styles.body}>폰을 기울여 물을 붓는 동작을 읽습니다.</Text>
-        <View style={styles.row}>
-          <Text style={styles.status}>{label(motion)}</Text>
-          <Button small variant="secondary" label={motion === 'ok' ? '확인됨' : '허용'} onPress={askMotion} disabled={motion === 'ok'} />
+      <View style={styles.top}>
+        <Title title="FIUM에 필요한 권한을 설정해주세요" subtitle="필요한 권한을 모두 허용해주세요." />
+        <View style={styles.list}>
+          <PermRow icon={<PermBluetoothIcon width={24} height={24} />} title="블루투스" body="FIUM과 연결하고 물주기 신호를 전달해요." />
+          <PermRow icon={<PermActivityIcon width={24} height={24} />} title="신체 활동" body="움직임을 감지해 물주기에 사용해요." />
+          <PermRow icon={<PermStorageIcon width={24} height={24} />} title="저장소" body="활동 기록을 안전하게 저장해요." />
         </View>
-      </Card>
-      <Card kicker="블루투스">
-        <Text style={styles.body}>화분 로봇과 연결합니다. 지금 연결되지 않아도 홈에서 다시 할 수 있습니다.</Text>
-        <View style={styles.row}>
-          <Text style={styles.status}>{ble === 'skip' ? '개발 빌드에서 실제 연결' : label(ble)}</Text>
-          <Button
-            small
-            variant="secondary"
-            label={flower.connection === 'connected' ? '연결됨' : '연결'}
-            onPress={askBle}
-            loading={busy}
-            disabled={flower.connection === 'connected'}
-          />
-        </View>
-      </Card>
+      </View>
+      <View style={styles.flex} />
     </Screen>
   );
 }
 
-function label(s: Status): string {
-  switch (s) {
-    case 'ok':
-      return '허용됨';
-    case 'denied':
-      return '거부됨 · 설정에서 켤 수 있음';
-    case 'skip':
-      return '이 기기에서는 필요 없음';
-    default:
-      return '아직 묻지 않음';
-  }
+function PermRow({ icon, title, body }: { icon: ReactNode; title: string; body: string }) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.iconWrap}>{icon}</View>
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowBody}>{body}</Text>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  body: { fontSize: 15, color: colors.text, lineHeight: 22 },
-  row: { marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  status: { fontSize: 13, color: colors.textMuted, flex: 1, marginRight: 12 },
+  flex: { flex: 1 },
+  top: { gap: 36 },
+  list: { gap: 42 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary[400],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: { flex: 1 },
+  rowTitle: { ...type.subTitle, color: colors.primary[700] },
+  rowBody: { ...type.bodySmall, color: colors.primary[500] },
 });

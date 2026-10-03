@@ -34,6 +34,24 @@ export function formatKoreanDate(key: string): string {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
 }
 
+const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+/** 다이어리 카드용: 26.10.02 + (Tue) */
+export function formatDiaryDate(key: string): { short: string; weekday: string } {
+  const d = parseDateKey(key);
+  const yy = String(d.getFullYear()).slice(2);
+  const short = `${yy}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+  return { short, weekday: WEEKDAYS_EN[d.getDay()] };
+}
+
+export function studyDates(startDate: string, length = 4): { day: number; date: string }[] {
+  return Array.from({ length }, (_, i) => ({ day: i + 1, date: addDays(startDate, i) }));
+}
+
+export function pad2(n: number): string {
+  return pad(n);
+}
+
 export function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

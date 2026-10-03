@@ -15,18 +15,8 @@ export function buildCsv(state: AppState): string {
   const p = state.profile;
   const rows: string[] = [];
 
-  rows.push(line(['section', 'participantId', 'name', 'gender', 'ageGroup', 'habit', 'studyStartDate']));
-  rows.push(
-    line([
-      'profile',
-      p?.participantId,
-      p?.name,
-      p?.gender,
-      p?.ageGroup,
-      p?.habit,
-      p?.studyStartDate,
-    ]),
-  );
+  rows.push(line(['section', 'participantId', 'name', 'ageGroup', 'habit', 'deviceNumber', 'studyStartDate']));
+  rows.push(line(['profile', p?.participantId, p?.name, p?.ageGroup, p?.habit, p?.deviceNumber, p?.studyStartDate]));
   rows.push('');
 
   rows.push(
@@ -53,12 +43,18 @@ export function buildCsv(state: AppState): string {
       'section',
       'id',
       'date',
-      'didHabit',
-      'startTime',
-      'trigger',
-      'triggerNote',
-      'wiltAtWater',
-      'note',
+      'day',
+      'q1_noticedPetal',
+      'q2_recalledHabit',
+      'q3_petalStateWhenRecalled',
+      'q4_didHabit',
+      'q5_influences',
+      'q5_reasons',
+      'q5_otherText',
+      'q6_startDelay',
+      'q7_waterDelay',
+      'q8_freeText',
+      'createdAt',
       'updatedAt',
     ]),
   );
@@ -68,12 +64,18 @@ export function buildCsv(state: AppState): string {
         'diary',
         d.id,
         d.date,
-        d.didHabit,
-        d.startTime,
-        d.trigger,
-        d.triggerNote,
-        d.wiltAtWater,
-        d.note,
+        d.day,
+        d.q1_noticedPetal,
+        d.q2_recalledHabit,
+        d.q3_petalStateWhenRecalled,
+        d.q4_didHabit,
+        d.q5_influences.join('|'),
+        d.q5_reasons.join('|'),
+        d.q5_otherText,
+        d.q6_startDelay,
+        d.q7_waterDelay,
+        d.q8_freeText,
+        d.createdAt,
         d.updatedAt,
       ]),
     );

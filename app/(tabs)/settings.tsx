@@ -1,48 +1,27 @@
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../src/components/Button';
-import { Chips } from '../../src/components/Chips';
-import { Field, Input } from '../../src/components/Field';
 import { Screen } from '../../src/components/Screen';
+import { Title } from '../../src/components/Title';
+import { adminSmsUrl } from '../../src/data/adminContact';
 import { exportCsvAndShare } from '../../src/data/exportFile';
 import { useStore } from '../../src/data/store';
-import type { AgeGroup, Gender, Profile } from '../../src/data/types';
 import { colors } from '../../src/theme/colors';
-
-const GENDERS: readonly Gender[] = ['여성', '남성', '기타', '응답 안 함'];
-const AGES: readonly AgeGroup[] = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
+import { DownloadIcon, SosIcon } from '../../src/theme/icons';
+import { type } from '../../src/theme/typography';
 
 export default function SettingsScreen() {
-  const { state, saveProfile } = useStore();
-  const p = state.profile;
-  const formKey = p ? `${p.name}|${p.gender}|${p.ageGroup}|${p.habit}` : 'none';
-
-  return <SettingsForm key={formKey} profile={p} onSave={saveProfile} appState={state} />;
-}
-
-type FormProps = {
-  profile: Profile | null;
-  onSave: (input: Pick<Profile, 'name' | 'gender' | 'ageGroup' | 'habit'>) => void;
-  appState: ReturnType<typeof useStore>['state'];
-};
-
-function SettingsForm({ profile: p, onSave, appState }: FormProps) {
   const router = useRouter();
-  const [name, setName] = useState(p?.name ?? '');
-  const [gender, setGender] = useState<Gender | null>(p?.gender ?? null);
-  const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(p?.ageGroup ?? null);
-  const [habit, setHabit] = useState(p?.habit ?? '');
+  const { state } = useStore();
+  const p = state.profile;
   const [exporting, setExporting] = useState(false);
-
-  const dirty = p
-    ? name.trim() !== p.name || gender !== p.gender || ageGroup !== p.ageGroup || habit.trim() !== p.habit
-    : false;
 
   const exportData = async () => {
     setExporting(true);
     try {
-      await exportCsvAndShare(appState);
+      await exportCsvAndShare(state);
     } catch (e) {
       Alert.alert('내보내기 실패', e instanceof Error ? e.message : '다시 시도해 주세요.');
     } finally {
@@ -50,44 +29,93 @@ function SettingsForm({ profile: p, onSave, appState }: FormProps) {
     }
   };
 
+  const notifyAdmin = () => {
+    const body = `[피움] 도움이 필요해요. ${p?.participantId ?? ''} ${p?.name ?? ''} {여기 문제 상황을 설명해주세요}`;
+    Linking.openURL(adminSmsUrl(body)).catch(() => {
+      Alert.alert('문자를 열 수 없어요', '문자 앱에서 관리자에게 직접 보내 주세요.');
+    });
+  };
+
   return (
-    <Screen
-      scroll
-      title="설정"
-      hint="사용자 정보만 고칠 수 있습니다."
-      footer={
-        <Button
-          label="저장"
-          onPress={() => onSave({ name: name.trim(), gender, ageGroup, habit: habit.trim() })}
-          disabled={!dirty || !name.trim() || !habit.trim()}
-        />
-      }
-    >
-      <Field label="이름 또는 별칭">
-        <Input value={name} onChangeText={setName} />
-      </Field>
-      <Field label="성별">
-        <Chips options={GENDERS} value={gender} onChange={setGender} />
-      </Field>
-      <Field label="연령대">
-        <Chips options={AGES} value={ageGroup} onChange={setAgeGroup} />
-      </Field>
-      <Field label="목표 습관" helper="실험 중에 바꾸면 기록에 남습니다.">
-        <Input value={habit} onChangeText={setHabit} multiline />
-      </Field>
+    <Screen scroll nav={{ left: 'back', onLeft: () => router.navigate('/home') }}>
+      <Title title="설정" subtitle="프로필과 기록을 확인할 수 있어요." />
+      <View style={styles.stack}>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>프로필 정보</Text>
+          <View style={styles.rows}>
+            <Info label="이름" value={p?.name ?? ''} />
+            <Info label="연령대" value={p?.ageGroup ?? ''} />
+            <Info label="목표 습관" value={p?.habit ?? ''} />
+            <Info label="기기번호" value={p?.deviceNumber ?? ''} large />
+          </View>
+        </View>
 
-      <Field label="내 기록">
-        <Button variant="secondary" label="기록 내보내기 (CSV)" onPress={exportData} loading={exporting} />
-      </Field>
+        <View style={[styles.card, styles.cardTop]}>
+          <View style={styles.exportRow}>
+            <View style={styles.exportText}>
+              <Text style={styles.cardTitle}>활동 데이터 내보내기</Text>
+              <Text style={styles.cardHint}>기록된 데이터를 파일로 저장해요.</Text>
+            </View>
+            <Button
+              variant="small"
+              label="저장"
+              icon={<DownloadIcon width={24} height={24} />}
+              loading={exporting}
+              onPress={exportData}
+            />
+          </View>
+        </View>
 
-      <Pressable onLongPress={() => router.push('/sos')} delayLongPress={900} style={styles.hidden}>
-        <Text style={styles.hiddenLabel}>피움 · {p?.participantId ?? ''}</Text>
-      </Pressable>
+        <View>
+          <View style={[styles.card, styles.cardTop]}>
+            <View style={styles.sosRow}>
+              <SosIcon width={40} height={40} />
+              <View style={styles.exportText}>
+                <Text style={styles.cardTitle}>도움이 필요하신가요?</Text>
+                <Text style={styles.sosHint}>FIUM 또는 앱에 문제가 있을 경우 아래 버튼을 눌러 관리자에게 알려주세요.</Text>
+              </View>
+            </View>
+          </View>
+          <Button variant="cardFoot" label="관리자에게 알리기" onPress={notifyAdmin} />
+        </View>
+
+        <Pressable onLongPress={() => router.push('/sos')} delayLongPress={900} style={styles.hidden}>
+          <Text style={styles.hiddenLabel}>FIUM · {p?.participantId ?? ''}</Text>
+        </Pressable>
+      </View>
     </Screen>
   );
 }
 
+function Info({ label, value, large }: { label: string; value: string; large?: boolean }) {
+  return (
+    <View style={styles.info}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={[styles.infoValue, large && styles.infoValueLarge]}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  stack: { marginTop: 36, gap: 8 },
+  card: {
+    backgroundColor: colors.grey.white,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  cardTop: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  cardTitle: { ...type.bodyLarge, color: colors.primary[700] },
+  cardHint: { ...type.bodySmall, color: colors.grey[500], marginTop: 5 },
+  rows: { marginTop: 20, gap: 5 },
+  info: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  infoLabel: { ...type.bodySmall, color: colors.primary[500], width: 52 },
+  infoValue: { ...type.label, color: colors.primary[600], flex: 1 },
+  infoValueLarge: { ...type.bodyLarge, color: colors.primary[600] },
+  exportRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  exportText: { flex: 1, gap: 5 },
+  sosRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  sosHint: { ...type.bodySmall, color: colors.grey[400] },
   hidden: { marginTop: 24, alignSelf: 'center', padding: 12 },
-  hiddenLabel: { fontSize: 12, color: colors.gray[100] },
+  hiddenLabel: { ...type.caption, color: colors.grey[200] },
 });

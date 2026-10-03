@@ -1,11 +1,11 @@
 import { createContext, ReactNode, useContext, useMemo, useState } from 'react';
-import type { AgeGroup, Gender } from './types';
+import type { AgeGroup } from './types';
 
 export type OnboardingDraft = {
   name: string;
-  gender: Gender | null;
   ageGroup: AgeGroup | null;
   habit: string;
+  deviceNumber: string;
 };
 
 type DraftValue = {
@@ -18,9 +18,9 @@ const DraftContext = createContext<DraftValue | null>(null);
 export function OnboardingDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraftState] = useState<OnboardingDraft>({
     name: '',
-    gender: null,
     ageGroup: null,
     habit: '',
+    deviceNumber: '',
   });
   const value = useMemo<DraftValue>(
     () => ({ draft, setDraft: (patch) => setDraftState((d) => ({ ...d, ...patch })) }),

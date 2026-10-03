@@ -3,20 +3,25 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { AppState as RNAppState } from 'react-native';
 import { writeLocalSnapshot } from './exportFile';
 import { postSheetRow } from './sheets';
-import { toDateKey, toTimeKey, uid } from './time';
+import { studyDay, toDateKey, toTimeKey, uid } from './time';
 import {
   AppSettings,
   AppState,
   DEFAULT_SETTINGS,
+  deviceNameFromNumber,
   DiaryEntry,
   INITIAL_STATE,
   Profile,
   QueuedRow,
   SheetRow,
+  SurveyAnswers,
   WaterEvent,
 } from './types';
 
-const STORAGE_KEY = 'pium.state.v1';
+/** v1 → v2: 성별 삭제, 기기 번호 추가, 다이어리가 8문항 설문으로 바뀜 */
+const STORAGE_KEY = 'pium.state.v2';
+/** 온보딩부터 다시 보기 위해 로컬 기록을 한 번만 비웁니다. */
+const RESET_ONCE_KEY = 'pium.reset.once.2026-10-03-startover';
 
 type Action =
   | { type: 'hydrate'; state: AppState }
@@ -59,14 +64,14 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-type ProfileInput = Pick<Profile, 'name' | 'gender' | 'ageGroup' | 'habit'>;
+export type ProfileInput = Pick<Profile, 'name' | 'ageGroup' | 'habit' | 'deviceNumber'>;
 
 type StoreValue = {
   state: AppState;
   hydrated: boolean;
   saveProfile: (profile: ProfileInput) => void;
   recordWater: (input: Omit<WaterEvent, 'id' | 'at' | 'date'>) => WaterEvent;
-  saveDiary: (entry: Omit<DiaryEntry, 'id' | 'createdAt' | 'updatedAt'>) => DiaryEntry;
+  saveDiary: (date: string, answers: SurveyAnswers) => DiaryEntry;
   updateSettings: (settings: Partial<AppSettings>) => void;
   flushQueue: () => Promise<void>;
   resetAll: () => Promise<void>;
@@ -88,17 +93,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let alive = true;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw && alive) {
-          const parsed = JSON.parse(raw) as Partial<AppState>;
-          dispatch({
-            type: 'hydrate',
-            state: {
-              ...INITIAL_STATE,
-              ...parsed,
-              settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
-            },
-          });
+        const alreadyReset = await AsyncStorage.getItem(RESET_ONCE_KEY);
+        if (!alreadyReset) {
+          await AsyncStorage.multiRemove([STORAGE_KEY]);
+          await AsyncStorage.setItem(RESET_ONCE_KEY, '1');
+        } else {
+          const raw = await AsyncStorage.getItem(STORAGE_KEY);
+          if (raw && alive) {
+            const parsed = JSON.parse(raw) as Partial<AppState>;
+            dispatch({
+              type: 'hydrate',
+              state: {
+                ...INITIAL_STATE,
+                ...parsed,
+                settings: {
+                  ...DEFAULT_SETTINGS,
+                  ...(parsed.settings ?? {}),
+                  sheetUrl: parsed.settings?.sheetUrl || DEFAULT_SETTINGS.sheetUrl,
+                  adminPhone: DEFAULT_SETTINGS.adminPhone,
+                },
+              },
+            });
+          }
         }
       } finally {
         if (alive) setHydrated(true);
@@ -150,11 +166,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         createdAt: profile?.createdAt ?? new Date().toISOString(),
         studyStartDate: profile?.studyStartDate ?? toDateKey(),
         name: input.name,
-        gender: input.gender,
         ageGroup: input.ageGroup,
         habit: input.habit,
+        deviceNumber: input.deviceNumber,
       };
       dispatch({ type: 'setProfile', profile: next });
+      // 기기 번호가 바뀌면 BLE 이름도 같이 맞춘다 (관리자 화면에서 따로 덮어쓸 수 있음)
+      if (!profile || profile.deviceNumber !== next.deviceNumber) {
+        dispatch({ type: 'setSettings', settings: { deviceName: deviceNameFromNumber(next.deviceNumber) } });
+      }
       dispatch({
         type: 'enqueue',
         row: makeQueued({
@@ -165,9 +185,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           time: toTimeKey(),
           payload: {
             event: profile ? 'profile-updated' : 'registered',
-            gender: next.gender,
             ageGroup: next.ageGroup,
             habit: next.habit,
+            deviceNumber: next.deviceNumber,
             studyStartDate: next.studyStartDate,
           },
         }),
@@ -204,10 +224,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const saveDiary = useCallback<StoreValue['saveDiary']>(
-    (input) => {
-      const prev = state.diary.find((d) => d.date === input.date);
+    (date, answers) => {
+      const prev = state.diary.find((d) => d.date === date);
       const now = new Date().toISOString();
-      const entry: DiaryEntry = { id: prev?.id ?? uid(), createdAt: prev?.createdAt ?? now, updatedAt: now, ...input };
+      const day = profile ? (studyDay(profile.studyStartDate, date) ?? 0) : 0;
+      const entry: DiaryEntry = {
+        ...answers,
+        id: prev?.id ?? uid(),
+        date,
+        day,
+        createdAt: prev?.createdAt ?? now,
+        updatedAt: now,
+      };
       dispatch({ type: 'upsertDiary', entry });
       dispatch({
         type: 'enqueue',
@@ -218,12 +246,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           date: entry.date,
           time: toTimeKey(),
           payload: {
-            didHabit: entry.didHabit,
-            startTime: entry.startTime,
-            trigger: entry.trigger,
-            triggerNote: entry.triggerNote,
-            wiltAtWater: entry.wiltAtWater,
-            note: entry.note,
+            day: entry.day,
+            event: prev ? 'edited' : 'created',
+            q1_noticedPetal: entry.q1_noticedPetal,
+            q2_recalledHabit: entry.q2_recalledHabit,
+            q3_petalStateWhenRecalled: entry.q3_petalStateWhenRecalled,
+            q4_didHabit: entry.q4_didHabit,
+            q5_influences: entry.q5_influences.join('|'),
+            q5_reasons: entry.q5_reasons.join('|'),
+            q5_otherText: entry.q5_otherText,
+            q6_startDelay: entry.q6_startDelay,
+            q7_waterDelay: entry.q7_waterDelay,
+            q8_freeText: entry.q8_freeText,
           },
         }),
       });

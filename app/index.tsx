@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useStore } from '../src/data/store';
 import { colors } from '../src/theme/colors';
+import { LogoSplashIcon } from '../src/theme/icons';
 
+/** 피그마 Splash (358:11310): grey/base 배경, 가운데 로고 150×34 */
 export default function SplashScreen() {
   const router = useRouter();
   const { hydrated, state } = useStore();
@@ -12,14 +14,13 @@ export default function SplashScreen() {
     if (!hydrated) return;
     const timer = setTimeout(() => {
       router.replace(state.profile ? '/home' : '/onboarding');
-    }, 700);
+    }, 900);
     return () => clearTimeout(timer);
   }, [hydrated, state.profile, router]);
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.mark}>피움</Text>
-      <Text style={styles.sub}>Pium</Text>
+      <LogoSplashIcon />
     </View>
   );
 }
@@ -27,10 +28,8 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    backgroundColor: colors.yellow[50],
+    backgroundColor: colors.grey.base,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mark: { fontSize: 36, fontWeight: '600', color: colors.yellow[600], letterSpacing: 4 },
-  sub: { marginTop: 8, fontSize: 14, color: colors.yellow[400], letterSpacing: 2 },
 });

@@ -1,84 +1,184 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { connectionGuide, connectionLabel } from '../../src/ble/connectionText';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFlower } from '../../src/ble/FlowerProvider';
 import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
+import { Chip } from '../../src/components/Chip';
+import { FLOWER_COMMENT, FlowerImage, flowerStateFromWilt } from '../../src/components/FlowerImage';
 import { Screen } from '../../src/components/Screen';
+import { Snackbar } from '../../src/components/Snackbar';
+import { Spinner } from '../../src/components/Spinner';
 import { useStore } from '../../src/data/store';
-import { formatKoreanDate, studyDay, toDateKey } from '../../src/data/time';
+import { studyDay, toDateKey } from '../../src/data/time';
+import { STUDY_DAYS } from '../../src/data/types';
 import { colors } from '../../src/theme/colors';
+import { ArrowIcon, BgStatusCard, CloseSmallIcon, WateringArrowIcon } from '../../src/theme/icons';
+import { fonts, type } from '../../src/theme/typography';
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
 
 export default function HomeScreen() {
-  const { state, todayWater, todayDiary } = useStore();
+  const router = useRouter();
+  const { state, todayWater } = useStore();
   const flower = useFlower();
-  const today = toDateKey();
-  const day = state.profile ? studyDay(state.profile.studyStartDate, today) : null;
+  const day = state.profile ? studyDay(state.profile.studyStartDate, toDateKey()) : null;
+
   const connected = flower.connection === 'connected';
   const busy = flower.connection === 'scanning' || flower.connection === 'connecting';
-  const guide = connectionGuide(flower.connection, flower.stale);
+  const failed = ['error', 'notFound', 'poweredOff', 'unauthorized', 'unavailable'].includes(flower.connection);
+  const flowerState = connected ? flowerStateFromWilt(flower.wiltPercent) : 'disconnected';
+  const canWater = connected;
+  const waterDone = canWater && todayWater.length > 0 && flowerState === 'bloomed';
+  const [snack, setSnack] = useState<string | null>(null);
+  const hideSnack = useCallback(() => setSnack(null), []);
+
+  const onConnect = async () => {
+    const next = await flower.connect();
+    if (next === 'poweredOff') setSnack('블루투스를 켜 주세요');
+  };
 
   return (
-    <Screen
-      scroll
-      title={state.profile ? `${state.profile.name} 님` : '홈'}
-      hint={`${formatKoreanDate(today)}${day ? ` · ${day}일차` : ''}`}
-    >
-      <Card kicker="오늘의 행동" tone="soft">
-        <Text style={styles.habit}>{state.profile?.habit ?? '목표 습관이 없습니다'}</Text>
-        <Text style={styles.sub}>
-          {todayWater.length > 0
-            ? `오늘 ${todayWater.length}번 물을 주었습니다`
-            : '행동을 마치면 물주기 탭에서 물을 주세요'}
-        </Text>
-      </Card>
-
-      <Card kicker="화분">
-        <View style={styles.row}>
-          <View style={[styles.dot, connected && !flower.stale && styles.dotOn, busy && styles.dotBusy]} />
-          <Text style={styles.status}>{connectionLabel(flower.connection, flower.stale)}</Text>
+    <View style={styles.page}>
+      <Screen nav={{ left: 'logo', rightText: day ? `DAY ${pad2(day)} / ${pad2(STUDY_DAYS)}` : undefined }} scroll>
+      {/* 상태 카드 */}
+      <View style={styles.statusCard}>
+        <View style={StyleSheet.absoluteFill}>
+          <BgStatusCard width="100%" height="100%" preserveAspectRatio="none" />
         </View>
-        {connected && flower.wiltPercent !== null ? (
-          <Text style={styles.sub}>꽃 상태 {100 - flower.wiltPercent}% 피어 있음</Text>
-        ) : null}
-        {guide.length > 0 ? (
-          <View style={styles.guide}>
-            {guide.map((g) => (
-              <Text key={g} style={styles.guideLine}>
-                · {g}
-              </Text>
-            ))}
+        <View style={styles.habitBlock}>
+          <Text style={styles.habitKicker}>Today&apos;s Habit</Text>
+          <Text style={styles.habit} numberOfLines={1} ellipsizeMode="tail">
+            {state.profile?.habit ?? ''}
+          </Text>
+        </View>
+        <View style={styles.statusRow}>
+          <View style={styles.statusLeft}>
+            <View style={styles.currentRow}>
+              <Text style={styles.current}>Current FIUM</Text>
+              {connected ? <Chip label="연결됨" /> : failed ? <Chip label="연결 실패" /> : null}
+            </View>
+            <Text style={styles.comment}>{FLOWER_COMMENT[flowerState]}</Text>
           </View>
-        ) : null}
-        {flower.lastError && !connected ? <Text style={styles.err}>{flower.lastError}</Text> : null}
-        <View style={styles.actions}>
-          {connected ? (
-            <Button small variant="ghost" label="연결 끊기" onPress={flower.disconnect} />
-          ) : (
-            <Button small variant="secondary" label={busy ? '찾는 중' : '연결'} loading={busy} onPress={flower.connect} />
-          )}
+          <View style={styles.statusRight}>
+            <View style={styles.flowerWrap}>
+              <FlowerImage state={flowerState} style={styles.flower} />
+            </View>
+            {connected ? (
+              <Button
+                variant="pill"
+                label="연결 끊기"
+                icon={<CloseSmallIcon width={18} height={18} />}
+                onPress={flower.disconnect}
+                style={styles.connectBtn}
+              />
+            ) : busy ? (
+              <Button variant="pillDark" label="연결 중" icon={<Spinner />} loading style={styles.connectBtn} />
+            ) : (
+              <Button
+                variant="pill"
+                label="연결하기"
+                icon={<ArrowIcon width={18} height={18} />}
+                onPress={onConnect}
+                style={styles.connectBtn}
+              />
+            )}
+          </View>
         </View>
-        {flower.kind === 'mock' ? <Text style={styles.mock}>Expo Go: 가상 화분으로 동작 중</Text> : null}
-      </Card>
+      </View>
 
-      {!todayDiary ? (
-        <Text style={styles.footnote}>오늘 기록은 아직 없습니다. 하루가 끝나기 전에 오늘 탭에서 남겨 주세요.</Text>
-      ) : null}
-    </Screen>
+      {/* Watering 카드 */}
+      <View style={styles.waterCard}>
+        <View style={styles.waterText}>
+          <View style={styles.waterHead}>
+            <Text style={styles.watering}>Watering</Text>
+            {waterDone ? <Chip label="완료됨" tone="blue" /> : null}
+          </View>
+          <Text style={styles.waterBody}>
+            {!canWater ? (
+              'FIUM에게 물을 주려면 연결이 필요해요'
+            ) : waterDone ? (
+              <>
+                오늘의 물주기를 <Text style={styles.bold}>완료</Text>했어요.
+              </>
+            ) : (
+              <>
+                오늘의 습관을 <Text style={styles.bold}>완료</Text>했다면 FIUM에 <Text style={styles.bold}>물</Text>을 주세요.
+              </>
+            )}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.push('/water')}
+          disabled={!canWater}
+          accessibilityRole="button"
+          accessibilityLabel="물주기"
+          accessibilityState={{ disabled: !canWater }}
+          style={({ pressed }) => [
+            styles.waterBtn,
+            !canWater && styles.waterBtnDisabled,
+            canWater && pressed && styles.waterBtnPressed,
+          ]}
+        >
+          <WateringArrowIcon
+            width={110}
+            height={160}
+            color={waterDone ? colors.secondary[300] : colors.secondary[400]}
+          />
+        </Pressable>
+      </View>
+        {flower.kind === 'mock' ? <Text style={styles.mock}>Expo Go: 가상 화분으로 동작 중</Text> : null}
+      </Screen>
+      <Snackbar message={snack} onHide={hideSnack} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  habit: { fontSize: 20, fontWeight: '600', color: colors.yellow[700], lineHeight: 28 },
-  sub: { marginTop: 8, fontSize: 13, color: colors.textMuted },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.gray[200] },
-  dotOn: { backgroundColor: colors.blue[300] },
-  dotBusy: { backgroundColor: colors.yellow[300] },
-  status: { fontSize: 17, color: colors.text },
-  guide: { marginTop: 12, gap: 4 },
-  guideLine: { fontSize: 13, color: colors.textMuted, lineHeight: 20 },
-  err: { marginTop: 8, fontSize: 12, color: colors.gray[300] },
-  actions: { marginTop: 14, flexDirection: 'row' },
-  mock: { marginTop: 10, fontSize: 11, color: colors.gray[300] },
-  footnote: { marginTop: 8, fontSize: 13, color: colors.gray[300], lineHeight: 20 },
+  page: { flex: 1 },
+  statusCard: {
+    width: '100%',
+    aspectRatio: 362 / 376,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  habitBlock: { alignItems: 'flex-end', gap: 12, width: '100%' },
+  habitKicker: { fontFamily: fonts.semiBold, fontSize: 13.85, lineHeight: 17, color: colors.primary[500] },
+  habit: {
+    ...type.title,
+    color: colors.primary[700],
+    textAlign: 'right',
+    width: '100%',
+    paddingLeft: 4,
+  },
+  statusRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 16, width: '100%' },
+  statusLeft: { flex: 1, minWidth: 0, gap: 8 },
+  currentRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  current: { ...type.bodyLarge, color: colors.primary[500] },
+  comment: { ...type.bodyLarge, color: colors.primary[700] },
+  statusRight: { flex: 1, minWidth: 0, alignItems: 'flex-end', gap: 8 },
+  flowerWrap: { alignSelf: 'stretch', aspectRatio: 173 / 200 },
+  flower: { width: '100%', height: '100%' },
+  connectBtn: { width: 112, flexShrink: 0 },
+
+  waterCard: {
+    marginTop: 8,
+    backgroundColor: colors.primary[100],
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+    borderBottomLeftRadius: 99,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  waterText: { flex: 1, minHeight: 178, gap: 12 },
+  waterHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  watering: { ...type.bodyLarge, color: colors.secondary[400] },
+  waterBtnDisabled: { opacity: 0.35 },
+  waterBody: { fontFamily: fonts.medium, fontSize: 19, lineHeight: 25, color: colors.primary[700] },
+  bold: { fontFamily: fonts.bold },
+  waterBtn: { width: 110, height: 160 },
+  waterBtnPressed: { opacity: 0.85 },
+  mock: { marginTop: 12, ...type.caption, color: colors.grey[300], textAlign: 'center' },
 });

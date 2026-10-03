@@ -20,7 +20,9 @@ type FlowerValue = {
   lastError: string | null;
   /** 상태 알림이 한동안 끊겼는지 */
   stale: boolean;
-  connect: () => Promise<void>;
+  /** 로봇이 마지막으로 "활짝 핌"(HOME OK 또는 위치 0 정지)을 알린 시각. Blooming → Bloomed 전환에 쓴다 */
+  lastBloomedAt: number | null;
+  connect: () => Promise<ConnectionState>;
   disconnect: () => Promise<void>;
   send: (command: FlowerCommand) => Promise<void>;
   /** RESET 전송 후 WATER_POS 응답을 기다립니다. */
@@ -45,6 +47,7 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
   const [lastSeenAt, setLastSeenAt] = useState<number | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
+  const [lastBloomedAt, setLastBloomedAt] = useState<number | null>(null);
 
   useEffect(() => {
     const offState = client.onState((s) => {
@@ -57,6 +60,7 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
       setLastSeenAt(Date.now());
       setStale(false);
       if (s.pos !== null) setPos(s.pos);
+      if (s.homeOk || (s.motor === 'STOP' && s.pos === 0)) setLastBloomedAt(Date.now());
       if (s.waterPos !== null) {
         const pending = waiters.list;
         waiters.list = [];
@@ -84,6 +88,7 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
   const connect = useCallback(async () => {
     setLastError(null);
     await client.connect(appState.settings.deviceName);
+    return client.getState();
   }, [client, appState.settings.deviceName]);
 
   const disconnect = useCallback(() => client.disconnect(), [client]);
@@ -93,6 +98,7 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
     if (client.getState() !== 'connected') {
       return { waterPos: null, wiltPercent: null, connected: false };
     }
+    setLastBloomedAt(null);
     const waitPos = new Promise<number | null>((resolve) => {
       const onPos: WaterWaiter = (p) => {
         clearTimeout(timer);
@@ -129,12 +135,13 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
       lastSeenAt,
       lastError,
       stale,
+      lastBloomedAt,
       connect,
       disconnect,
       send,
       water,
     }),
-    [client.kind, connection, status, pos, lastSeenAt, lastError, stale, connect, disconnect, send, water],
+    [client.kind, connection, status, pos, lastSeenAt, lastError, stale, lastBloomedAt, connect, disconnect, send, water],
   );
 
   return <FlowerContext.Provider value={value}>{children}</FlowerContext.Provider>;

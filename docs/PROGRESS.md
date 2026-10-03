@@ -99,3 +99,21 @@ git add -A; git commit -m "메시지"; git push
 - Expo Go에서는 BLE가 없어 가상 화분으로 동작 (홈 카드에 문구 표시). 실제 연결은 개발 빌드에서만
 - 첫 Gradle 빌드에서 `--build-cache` 쓰기 오류(AccessDenied)가 한 번 났고, `--no-build-cache`로 성공
 - `android/` 폴더는 생성물(gitignore). 설정은 `app.json`으로만
+
+## 2026-10-03 (4일차, 노트북)
+
+### 완료
+- 피그마 토큰·Pretendard·SVG 아이콘/배경을 앱에 적용
+- 탭 5개 → **다이어리 / 홈 / 설정** 3탭 (피그마 아이콘)
+- 온보딩: 한 장 폼(이름·연령대·목표습관·기기번호) + 권한. 성별 삭제. 기기번호 → `C33_FLOWER_{n}`
+- 홈: 상태 카드 + Watering 카드. 연결 알약 버튼
+- 물주기 스택: `water` → `done` → `blooming`(HOME OK/가상은 짧게 대기) → `bloomed`
+- 다이어리: 4일 카드 + 설문 8문항 3페이지(Q4 분기) + 리뷰/수정
+- 설정: 프로필·CSV 내보내기·「관리자에게 알리기」노출. BLE 디버그는 하단 길게 누르기
+- 저장 키 `pium.state.v2` (이전 로컬 프로필은 초기화됨)
+- `tsc --noEmit`, `expo lint` 통과
+
+### 아직
+- 꽃 PNG 3x는 피그마 2x로 임시. 더 선명하게 하려면 `assets/figma/`에 3x를 넣어 주면 교체
+- 폰에서 화면·BLE 확인은 아직. Metro 켠 뒤 개발 빌드에서 보면 됨
+- 커밋·push는 아직 안 함 (요청하면 함)

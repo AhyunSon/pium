@@ -66,6 +66,11 @@ function loadBlePlx(): BlePlxModule | null {
   }
 }
 
+/** 온보딩 권한 화면에서 미리 물어볼 때 씁니다. 연결 때도 같은 함수를 다시 거칩니다. */
+export async function requestBluetoothPermissions(): Promise<boolean> {
+  return ensureAndroidPermissions();
+}
+
 async function ensureAndroidPermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
   const api = Number(Platform.Version);

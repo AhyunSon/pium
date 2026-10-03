@@ -1,5 +1,54 @@
-/** 피움 팔레트. 화면에서 색을 바꿀 때 이 파일만 보면 됩니다. */
+/**
+ * 피움 팔레트. 피그마 변수 이름을 그대로 따른다 (primary / secondary / grey).
+ * 화면에서 색을 바꿀 때 이 파일만 보면 됩니다.
+ */
 export const colors = {
+  primary: {
+    base: '#FDFBD4',
+    100: '#F9F37B',
+    200: '#D8D47B',
+    300: '#B0AD62',
+    400: '#89864B',
+    500: '#646236',
+    600: '#414021',
+    700: '#21210E',
+  },
+  secondary: {
+    base: '#D4D6FD',
+    100: '#A6ABFB',
+    300: '#7680F9',
+    400: '#3D52F5',
+    500: '#1430BF',
+    600: '#081972',
+    700: '#02093E',
+  },
+  grey: {
+    base: '#F9F9F6',
+    white: '#FFFFFF',
+    light: '#D9D9D9',
+    200: '#D0D0CD',
+    300: '#A9A9A6',
+    400: '#848481',
+    500: '#60605E',
+    600: '#3F3F3D',
+    700: '#20201F',
+  },
+
+  // 의미 토큰
+  bg: '#F9F9F6',
+  surface: '#FFFFFF',
+  text: '#21210E',
+  textSub: '#646236',
+  textMuted: '#848481',
+  textDisabled: '#A9A9A6',
+  border: '#D0D0CD',
+  accent: '#F9F37B',
+  accentPressed: '#D8D47B',
+  water: '#3D52F5',
+  /** 물주기 화면 다크 배경 */
+  dark: '#21210E',
+
+  // 이전 이름 호환 (점진적으로 제거)
   yellow: {
     50: '#FDFBD4',
     100: '#F9F37B',
@@ -28,12 +77,4 @@ export const colors = {
     500: '#3F3F3D',
     600: '#20201F',
   },
-  bg: '#F9F9F6',
-  surface: '#FFFFFF',
-  text: '#3F3F3D',
-  textMuted: '#848481',
-  border: '#D0D0CD',
-  accent: '#F9F37B',
-  accentPressed: '#D8D47B',
-  water: '#3D52F5',
 } as const;
