@@ -90,7 +90,9 @@ export default function SettingsScreen() {
 function Info({ label, value, large }: { label: string; value: string; large?: boolean }) {
   return (
     <View style={styles.info}>
-      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoLabel} numberOfLines={1}>
+        {label}
+      </Text>
       <Text style={[styles.infoValue, large && styles.infoValueLarge]}>{value}</Text>
     </View>
   );
@@ -108,9 +110,9 @@ const styles = StyleSheet.create({
   cardTitle: { ...type.bodyLarge, color: colors.primary[700] },
   cardHint: { ...type.bodySmall, color: colors.grey[500], marginTop: 5 },
   rows: { marginTop: 20, gap: 5 },
-  info: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
-  infoLabel: { ...type.bodySmall, color: colors.primary[500], width: 52 },
-  infoValue: { ...type.label, color: colors.primary[600], flex: 1 },
+  info: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  infoLabel: { ...type.bodySmall, color: colors.primary[500], width: 72, flexShrink: 0 },
+  infoValue: { ...type.label, color: colors.primary[600], flex: 1, minWidth: 0 },
   infoValueLarge: { ...type.bodyLarge, color: colors.primary[600] },
   exportRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   exportText: { flex: 1, gap: 5 },

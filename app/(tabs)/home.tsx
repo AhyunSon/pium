@@ -103,14 +103,18 @@ export default function HomeScreen() {
           </View>
           <Text style={styles.waterBody}>
             {!canWater ? (
-              'FIUM에게 물을 주려면 연결이 필요해요'
+              <>
+                FIUM에게 물을 주려면{'\n'}연결이 필요해요
+              </>
             ) : waterDone ? (
               <>
-                오늘의 물주기를 <Text style={styles.bold}>완료</Text>했어요.
+                오늘의 물주기를{'\n'}
+                <Text style={styles.bold}>완료</Text>했어요.
               </>
             ) : (
               <>
-                오늘의 습관을 <Text style={styles.bold}>완료</Text>했다면 FIUM에 <Text style={styles.bold}>물</Text>을 주세요.
+                오늘의 습관을 <Text style={styles.bold}>완료</Text>했다면{'\n'}
+                FIUM에 <Text style={styles.bold}>물</Text>을 주세요.
               </>
             )}
           </Text>
@@ -181,7 +185,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  waterText: { flex: 1, minHeight: 178, gap: 12 },
+  waterText: { flex: 1, minWidth: 0, minHeight: 178, gap: 12 },
   waterHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   watering: { ...type.bodyLarge, color: colors.secondary[400] },
   waterBtnDisabled: { opacity: 0.35 },

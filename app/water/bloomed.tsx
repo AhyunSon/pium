@@ -23,7 +23,9 @@ export default function BloomedScreen() {
         footer={
           <Button
             label="오늘 기록 남기기"
-            onPress={() => router.replace({ pathname: '/survey', params: { date: toDateKey() } })}
+            onPress={() =>
+              router.replace({ pathname: '/survey', params: { date: toDateKey(), from: 'water' } })
+            }
           />
         }
         contentStyle={styles.content}
