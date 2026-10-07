@@ -94,7 +94,6 @@ export default function WaterScreen() {
             </Text>
             <View style={styles.level}>
               <Text style={[styles.waterLabel, { color: percentColor }]}>Watering</Text>
-              <Text style={[styles.percent, { color: percentColor }]}>{pour.percent}%</Text>
             </View>
           </View>
           <View style={styles.tiltWrap}>
@@ -117,6 +116,5 @@ const styles = StyleSheet.create({
   sub: { ...type.bodyLarge, color: colors.grey.white, marginTop: -78 },
   level: { gap: 12 },
   waterLabel: { fontFamily: type.headingLight.fontFamily, fontSize: 24, lineHeight: 30, textTransform: 'capitalize' },
-  percent: { ...type.waterPercent },
   tiltWrap: { alignSelf: 'flex-end', paddingBottom: 8 },
 });
