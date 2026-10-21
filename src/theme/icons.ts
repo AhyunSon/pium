@@ -19,8 +19,8 @@ export { default as PermActivityIcon } from '../../assets/icons/perm-activity.sv
 export { default as PermBluetoothIcon } from '../../assets/icons/perm-bluetooth.svg';
 export { default as PermStorageIcon } from '../../assets/icons/perm-storage.svg';
 export { default as SosIcon } from '../../assets/icons/sos.svg';
-export { default as TabDiaryOffIcon } from '../../assets/icons/tab-diary-off.svg';
-export { default as TabDiaryOnIcon } from '../../assets/icons/tab-diary-on.svg';
+export { default as TabFallOffIcon } from '../../assets/icons/tab-fall-off.svg';
+export { default as TabFallOnIcon } from '../../assets/icons/tab-fall-on.svg';
 export { default as TabHomeOffIcon } from '../../assets/icons/tab-home-off.svg';
 export { default as TabHomeOnIcon } from '../../assets/icons/tab-home-on.svg';
 export { default as TabSettingOffIcon } from '../../assets/icons/tab-setting-off.svg';

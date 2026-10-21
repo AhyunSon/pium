@@ -5,10 +5,7 @@ import type { AppState } from './types';
 
 async function writeText(file: File, text: string) {
   file.create({ overwrite: true, intermediates: true });
-  const written = file.write(text);
-  if (written && typeof (written as Promise<void>).then === 'function') {
-    await written;
-  }
+  await Promise.resolve(file.write(text));
 }
 
 /** 기록 CSV를 폰에 쓰고 공유 시트를 엽니다. 파일 경로를 돌려줍니다. */

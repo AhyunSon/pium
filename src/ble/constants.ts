@@ -14,7 +14,20 @@ export const STATUS_STALE_MS = 4000;
 
 export const SCAN_TIMEOUT_MS = 12000;
 
-export type FlowerCommand = 'RESET' | 'TEST' | `SETPOS:${number}` | `MOVEPOS:${number}`;
+export type FlowerCommand =
+  | 'RESET'
+  | 'TEST'
+  | 'WATER_START'
+  | 'WATER_STOP'
+  | 'GETTIME'
+  | `SETTIME:${number}`
+  | `SETPOS:${number}`
+  | `MOVEPOS:${number}`;
+
+/** 꽃 9600→0 이 20초. 명령·모터 지연보다 물이 먼저 안 끝나게 3초 여유 */
+export const FULL_POUR_MS = 23000;
+/** 꽃이 다 핀 뒤 남은 물. 0→100이 이 시간이면 남은 양만 더 빨리 빠짐 */
+export const BLOOMED_POUR_MS = 8000;
 
 export function wiltPercentFromPos(pos: number): number {
   const clamped = Math.max(FLOWER_MIN_POSITION, Math.min(FLOWER_MAX_POSITION, pos));

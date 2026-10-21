@@ -1,5 +1,5 @@
 import { DeviceMotion } from 'expo-sensors';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { PermissionsAndroid, Platform, StyleSheet, Text, View } from 'react-native';
 import { requestBluetoothPermissions } from '../../src/ble/FlowerClient';
@@ -8,6 +8,7 @@ import { Screen } from '../../src/components/Screen';
 import { Title } from '../../src/components/Title';
 import { useOnboardingDraft } from '../../src/data/onboardingDraft';
 import { useStore } from '../../src/data/store';
+import { AGE_GROUPS, type AgeGroup } from '../../src/data/types';
 import { colors } from '../../src/theme/colors';
 import { PermActivityIcon, PermBluetoothIcon, PermStorageIcon } from '../../src/theme/icons';
 import { type } from '../../src/theme/typography';
@@ -15,9 +16,16 @@ import { type } from '../../src/theme/typography';
 /** 피그마 Permission: 블루투스 · 신체 활동 · 저장소 안내 후 「설정하기」 */
 export default function PermissionsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ name?: string; ageGroup?: string; deviceNumber?: string }>();
   const { draft } = useOnboardingDraft();
   const { saveProfile } = useStore();
   const [busy, setBusy] = useState(false);
+
+  const param = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
+  const ageFromParams = param(params.ageGroup);
+  const ageGroup: AgeGroup | null = AGE_GROUPS.includes(ageFromParams as AgeGroup)
+    ? (ageFromParams as AgeGroup)
+    : draft.ageGroup;
 
   const askAll = async () => {
     setBusy(true);
@@ -34,10 +42,9 @@ export default function PermissionsScreen() {
       setBusy(false);
     }
     saveProfile({
-      name: draft.name.trim(),
-      ageGroup: draft.ageGroup,
-      habit: draft.habit.trim(),
-      deviceNumber: draft.deviceNumber.trim(),
+      name: (param(params.name) || draft.name).trim(),
+      ageGroup,
+      deviceNumber: (param(params.deviceNumber) || draft.deviceNumber).trim(),
     });
     router.replace('/home');
   };

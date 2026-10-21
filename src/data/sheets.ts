@@ -20,13 +20,22 @@ export async function postSheetRow(url: string, row: SheetRow): Promise<boolean>
 }
 
 export function flattenRow(row: SheetRow): Record<string, string | number | boolean | null> {
-  return {
+  const { ageGroup: payloadAge, deviceNumber: payloadDevice, fallHours: payloadFall, ...restPayload } = row.payload;
+  const base: Record<string, string | number | boolean | null> = {
     kind: row.kind,
     participantId: row.participantId,
     name: row.name,
     date: row.date,
     time: row.time,
-    ...row.payload,
+    ...restPayload,
     sentAt: new Date().toISOString(),
   };
+  if (row.kind !== 'session') return base;
+  const session: Record<string, string | number | boolean | null> = {
+    ...base,
+    ageGroup: row.ageGroup || payloadAge || '',
+    deviceNumber: row.deviceNumber || payloadDevice || '',
+  };
+  if (restPayload.event === 'fall-hours') session.fallHours = payloadFall ?? '';
+  return session;
 }

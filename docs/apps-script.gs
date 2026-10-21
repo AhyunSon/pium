@@ -8,7 +8,9 @@
  *    - 액세스 권한: 모든 사용자
  * 4. 나온 /exec URL을 앱의 관리자 SOS 화면 > 시트 URL 에 붙여 넣습니다.
  *
- * 시트 탭은 water / diary / session 세 개가 자동으로 만들어집니다.
+ * 시트 탭은 water / session 이 자동으로 만들어집니다.
+ * water 행은 완료(water-complete)와 만개 확인(water-bloom)에 올라갑니다.
+ * ageGroup, deviceNumber 는 session 등록 행에, fallHours 는 fall-hours 이벤트 행에 둡니다.
  */
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -20,6 +22,11 @@ function doPost(e) {
     var sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
 
     var keys = Object.keys(data);
+    if (data.kind === 'session') {
+      ['ageGroup', 'deviceNumber'].forEach(function (k) {
+        if (keys.indexOf(k) === -1) keys.push(k);
+      });
+    }
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(['receivedAt'].concat(keys));
     } else {

@@ -46,7 +46,6 @@ export default function RootLayout() {
               <Stack.Screen name="onboarding" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="water" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen name="survey" options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="sos" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             </Stack>
           </FlowerProvider>

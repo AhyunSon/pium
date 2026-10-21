@@ -1,33 +1,33 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useReducer, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AppState as RNAppState } from 'react-native';
+import { IS_WORKSHOP } from '../config/variant';
 import { writeLocalSnapshot } from './exportFile';
 import { postSheetRow } from './sheets';
-import { studyDay, toDateKey, toTimeKey, uid } from './time';
+import { toDateKey, toTimeKey, uid } from './time';
 import {
   AppSettings,
   AppState,
+  clampFallHours,
   DEFAULT_SETTINGS,
   deviceNameFromNumber,
-  DiaryEntry,
+  FALL_HOURS_DEFAULT,
   INITIAL_STATE,
   Profile,
   QueuedRow,
   SheetRow,
-  SurveyAnswers,
   WaterEvent,
 } from './types';
 
-/** v1 → v2: 성별 삭제, 기기 번호 추가, 다이어리가 8문항 설문으로 바뀜 */
-const STORAGE_KEY = 'pium.state.v2';
-/** 온보딩부터 다시 보기 위해 로컬 기록을 한 번만 비웁니다. */
-const RESET_ONCE_KEY = 'pium.reset.once.2026-10-03-startover';
+const STORAGE_KEY = IS_WORKSHOP ? 'pium.workshop.state.v3' : 'pium.state.v2';
+const RESET_ONCE_KEY = IS_WORKSHOP
+  ? 'pium.workshop.reset.once.v3'
+  : 'pium.reset.once.2026-10-03-startover';
 
 type Action =
   | { type: 'hydrate'; state: AppState }
   | { type: 'setProfile'; profile: Profile }
   | { type: 'addWater'; event: WaterEvent }
-  | { type: 'upsertDiary'; entry: DiaryEntry }
   | { type: 'setSettings'; settings: Partial<AppSettings> }
   | { type: 'enqueue'; row: QueuedRow }
   | { type: 'dequeue'; ids: string[] }
@@ -42,10 +42,6 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, profile: action.profile };
     case 'addWater':
       return { ...state, waterEvents: [...state.waterEvents, action.event] };
-    case 'upsertDiary': {
-      const others = state.diary.filter((d) => d.date !== action.entry.date);
-      return { ...state, diary: [...others, action.entry] };
-    }
     case 'setSettings':
       return { ...state, settings: { ...state.settings, ...action.settings } };
     case 'enqueue':
@@ -64,18 +60,17 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-export type ProfileInput = Pick<Profile, 'name' | 'ageGroup' | 'habit' | 'deviceNumber'>;
+export type ProfileInput = Pick<Profile, 'name' | 'ageGroup' | 'deviceNumber'>;
 
 type StoreValue = {
   state: AppState;
   hydrated: boolean;
   saveProfile: (profile: ProfileInput) => void;
-  recordWater: (input: Omit<WaterEvent, 'id' | 'at' | 'date'>) => WaterEvent;
-  saveDiary: (date: string, answers: SurveyAnswers) => DiaryEntry;
+  recordWater: (input: Omit<WaterEvent, 'id' | 'at' | 'date' | 'fallHours' | 'mark'> & { mark?: WaterEvent['mark'] }) => WaterEvent;
+  saveFallHours: (hours: number) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
   flushQueue: () => Promise<void>;
   resetAll: () => Promise<void>;
-  todayDiary: DiaryEntry | null;
   todayWater: WaterEvent[];
 };
 
@@ -106,11 +101,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               state: {
                 ...INITIAL_STATE,
                 ...parsed,
+                waterEvents: parsed.waterEvents ?? [],
+                queue: parsed.queue ?? [],
                 settings: {
                   ...DEFAULT_SETTINGS,
                   ...(parsed.settings ?? {}),
                   sheetUrl: parsed.settings?.sheetUrl || DEFAULT_SETTINGS.sheetUrl,
                   adminPhone: DEFAULT_SETTINGS.adminPhone,
+                  fallHours: clampFallHours(parsed.settings?.fallHours ?? FALL_HOURS_DEFAULT),
+                  deviceName:
+                    parsed.settings?.deviceName ||
+                    (parsed.profile?.deviceNumber
+                      ? deviceNameFromNumber(parsed.profile.deviceNumber)
+                      : DEFAULT_SETTINGS.deviceName),
                 },
               },
             });
@@ -131,18 +134,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [state, hydrated]);
 
   const { queue, settings, profile } = state;
+  const queueRef = useRef(queue);
+  const flushingRef = useRef(false);
+  queueRef.current = queue;
 
   const flushQueue = useCallback(async () => {
-    if (!settings.sheetUrl || queue.length === 0) return;
+    if (!settings.sheetUrl || flushingRef.current) return;
+    const items = queueRef.current;
+    if (items.length === 0) return;
+    flushingRef.current = true;
     const sent: string[] = [];
     const failed: string[] = [];
-    for (const item of queue) {
-      const ok = await postSheetRow(settings.sheetUrl, item.row);
-      (ok ? sent : failed).push(item.id);
+    try {
+      for (const item of items) {
+        const ok = await postSheetRow(settings.sheetUrl, item.row);
+        (ok ? sent : failed).push(item.id);
+      }
+      if (sent.length) dispatch({ type: 'dequeue', ids: sent });
+      if (failed.length) dispatch({ type: 'bumpAttempts', ids: failed });
+    } finally {
+      flushingRef.current = false;
     }
-    if (sent.length) dispatch({ type: 'dequeue', ids: sent });
-    if (failed.length) dispatch({ type: 'bumpAttempts', ids: failed });
-  }, [queue, settings.sheetUrl]);
+  }, [settings.sheetUrl]);
 
   useEffect(() => {
     if (!hydrated || queue.length === 0 || !settings.sheetUrl) return;
@@ -167,11 +180,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         studyStartDate: profile?.studyStartDate ?? toDateKey(),
         name: input.name,
         ageGroup: input.ageGroup,
-        habit: input.habit,
         deviceNumber: input.deviceNumber,
       };
       dispatch({ type: 'setProfile', profile: next });
-      // 기기 번호가 바뀌면 BLE 이름도 같이 맞춘다 (관리자 화면에서 따로 덮어쓸 수 있음)
       if (!profile || profile.deviceNumber !== next.deviceNumber) {
         dispatch({ type: 'setSettings', settings: { deviceName: deviceNameFromNumber(next.deviceNumber) } });
       }
@@ -181,13 +192,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           kind: 'session',
           participantId: next.participantId,
           name: next.name,
+          ageGroup: next.ageGroup ?? '',
+          deviceNumber: next.deviceNumber,
           date: toDateKey(),
           time: toTimeKey(),
           payload: {
             event: profile ? 'profile-updated' : 'registered',
-            ageGroup: next.ageGroup,
-            habit: next.habit,
-            deviceNumber: next.deviceNumber,
             studyStartDate: next.studyStartDate,
           },
         }),
@@ -199,7 +209,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const recordWater = useCallback<StoreValue['recordWater']>(
     (input) => {
       const now = new Date();
-      const event: WaterEvent = { id: uid(), at: now.toISOString(), date: toDateKey(now), ...input };
+      const event: WaterEvent = {
+        id: uid(),
+        at: now.toISOString(),
+        date: toDateKey(now),
+        fallHours: state.settings.fallHours,
+        mark: 'complete',
+        ...input,
+      };
       dispatch({ type: 'addWater', event });
       dispatch({
         type: 'enqueue',
@@ -210,63 +227,48 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           date: event.date,
           time: toTimeKey(now),
           payload: {
-            wiltPos: event.wiltPos,
+            event: event.mark === 'bloom' ? 'water-bloom' : 'water-complete',
+            pos: event.pos,
+            posStart: event.posStart,
+            posEnd: event.posEnd,
             wiltPercent: event.wiltPercent,
             deviceConnected: event.deviceConnected,
             pourDurationMs: event.pourDurationMs,
+            startStopChanges: event.startStopChanges,
+            bloomed: event.bloomed,
           },
         }),
       });
-      writeLocalSnapshot({ ...state, waterEvents: [...state.waterEvents, event] });
+      if (event.mark !== 'bloom') {
+        writeLocalSnapshot({ ...state, waterEvents: [...state.waterEvents, event] });
+      }
       return event;
     },
     [profile, state],
   );
 
-  const saveDiary = useCallback<StoreValue['saveDiary']>(
-    (date, answers) => {
-      const prev = state.diary.find((d) => d.date === date);
-      const now = new Date().toISOString();
-      const day = profile ? (studyDay(profile.studyStartDate, date) ?? 0) : 0;
-      const entry: DiaryEntry = {
-        ...answers,
-        id: prev?.id ?? uid(),
-        date,
-        day,
-        createdAt: prev?.createdAt ?? now,
-        updatedAt: now,
-      };
-      dispatch({ type: 'upsertDiary', entry });
+  const saveFallHours = useCallback(
+    (hours: number) => {
+      const next = clampFallHours(hours);
+      dispatch({ type: 'setSettings', settings: { fallHours: next } });
       dispatch({
         type: 'enqueue',
         row: makeQueued({
-          kind: 'diary',
+          kind: 'session',
           participantId: profile?.participantId ?? '',
           name: profile?.name ?? '',
-          date: entry.date,
+          ageGroup: profile?.ageGroup ?? '',
+          deviceNumber: profile?.deviceNumber ?? '',
+          date: toDateKey(),
           time: toTimeKey(),
           payload: {
-            day: entry.day,
-            event: prev ? 'edited' : 'created',
-            q1_noticedPetal: entry.q1_noticedPetal,
-            q2_recalledHabit: entry.q2_recalledHabit,
-            q3_petalStateWhenRecalled: entry.q3_petalStateWhenRecalled,
-            q4_didHabit: entry.q4_didHabit,
-            q5_influences: entry.q5_influences.join('|'),
-            q5_reasons: entry.q5_reasons.join('|'),
-            q5_otherText: entry.q5_otherText,
-            q6_startDelay: entry.q6_startDelay,
-            q6_laterReason: entry.q6_laterReason,
-            q7_waterDelay: entry.q7_waterDelay,
-            q7_laterReason: entry.q7_laterReason,
-            q8_freeText: entry.q8_freeText,
+            event: 'fall-hours',
+            fallHours: next,
           },
         }),
       });
-      writeLocalSnapshot({ ...state, diary: [...state.diary.filter((d) => d.date !== entry.date), entry] });
-      return entry;
     },
-    [profile, state],
+    [profile],
   );
 
   const updateSettings = useCallback((next: Partial<AppSettings>) => {
@@ -279,7 +281,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const today = toDateKey();
-  const todayDiary = useMemo(() => state.diary.find((d) => d.date === today) ?? null, [state.diary, today]);
   const todayWater = useMemo(() => state.waterEvents.filter((w) => w.date === today), [state.waterEvents, today]);
 
   const value = useMemo<StoreValue>(
@@ -288,14 +289,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hydrated,
       saveProfile,
       recordWater,
-      saveDiary,
+      saveFallHours,
       updateSettings,
       flushQueue,
       resetAll,
-      todayDiary,
       todayWater,
     }),
-    [state, hydrated, saveProfile, recordWater, saveDiary, updateSettings, flushQueue, resetAll, todayDiary, todayWater],
+    [state, hydrated, saveProfile, recordWater, saveFallHours, updateSettings, flushQueue, resetAll, todayWater],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

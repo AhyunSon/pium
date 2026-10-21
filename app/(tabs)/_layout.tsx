@@ -4,8 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import {
-  TabDiaryOffIcon,
-  TabDiaryOnIcon,
+  TabFallOffIcon,
+  TabFallOnIcon,
   TabHomeOffIcon,
   TabHomeOnIcon,
   TabSettingOffIcon,
@@ -17,13 +17,12 @@ import { fonts } from '../../src/theme/typography';
 const TAB_BAR_HEIGHT = 56;
 
 const TAB_META: Record<string, { label: string; on: typeof TabHomeOnIcon; off: typeof TabHomeOffIcon }> = {
-  diary: { label: '다이어리', on: TabDiaryOnIcon, off: TabDiaryOffIcon },
+  fall: { label: '낙화 시간', on: TabFallOnIcon, off: TabFallOffIcon },
   home: { label: '홈', on: TabHomeOnIcon, off: TabHomeOffIcon },
   settings: { label: '설정', on: TabSettingOnIcon, off: TabSettingOffIcon },
 };
 
 function BottomNav({ state, navigation }: BottomTabBarProps) {
-  // 시스템 내비게이션 바(제스처/3버튼) 높이는 기종마다 다르므로 런타임 inset을 그대로 더한다.
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 8);
 
@@ -62,7 +61,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
       tabBar={(props) => <BottomNav {...props} />}
     >
-      <Tabs.Screen name="diary" />
+      <Tabs.Screen name="fall" />
       <Tabs.Screen name="home" />
       <Tabs.Screen name="settings" />
     </Tabs>

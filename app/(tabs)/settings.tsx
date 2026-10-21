@@ -45,7 +45,6 @@ export default function SettingsScreen() {
           <View style={styles.rows}>
             <Info label="이름" value={p?.name ?? ''} />
             <Info label="연령대" value={p?.ageGroup ?? ''} />
-            <Info label="목표 습관" value={p?.habit ?? ''} />
             <Info label="기기번호" value={p?.deviceNumber ?? ''} large />
           </View>
         </View>

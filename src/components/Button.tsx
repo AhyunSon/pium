@@ -34,6 +34,7 @@ type Variant =
   | 'smallDark'
   | 'cardFoot'
   | 'cardFootMuted'
+  | 'pourComplete'
   | 'ghost'
   | 'danger';
 
@@ -243,6 +244,20 @@ const variants: Record<Variant, VariantStyle> = {
     label: { ...cardFootLabel, color: colors.grey.white },
     disabled: { backgroundColor: colors.grey[300] },
     disabledLabel: { color: colors.grey.light },
+  },
+  pourComplete: {
+    wrap: {
+      height: 56,
+      minWidth: 132,
+      paddingHorizontal: 24,
+      borderRadius: 8,
+      backgroundColor: colors.primary[100],
+      alignSelf: 'flex-end',
+    },
+    pressed: { backgroundColor: colors.primary[200] },
+    label: { ...type.subTitle, color: colors.primary[700], textAlign: 'center' },
+    disabled: { backgroundColor: colors.primary[400] },
+    disabledLabel: { color: colors.grey.white },
   },
   cardFootMuted: {
     wrap: {

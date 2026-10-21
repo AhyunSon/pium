@@ -20,6 +20,16 @@
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
+    "workshop": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_VARIANT": "workshop",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
+    },
     "production": {
       "android": {
         "buildType": "app-bundle"

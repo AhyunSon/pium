@@ -4,7 +4,6 @@ import type { AgeGroup } from './types';
 export type OnboardingDraft = {
   name: string;
   ageGroup: AgeGroup | null;
-  habit: string;
   deviceNumber: string;
 };
 
@@ -19,7 +18,6 @@ export function OnboardingDraftProvider({ children }: { children: ReactNode }) {
   const [draft, setDraftState] = useState<OnboardingDraft>({
     name: '',
     ageGroup: null,
-    habit: '',
     deviceNumber: '',
   });
   const value = useMemo<DraftValue>(

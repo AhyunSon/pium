@@ -86,7 +86,7 @@ export default function SosScreen() {
       <View style={styles.card}>
         <Text style={styles.kicker}>데이터</Text>
         <Text style={styles.meta}>
-          물주기 {state.waterEvents.length}건 · 일일 기록 {state.diary.length}건 · 전송 대기 {state.queue.length}건
+          물주기 {state.waterEvents.length}건 · 낙화 {state.settings.fallHours}시간 · 전송 대기 {state.queue.length}건
         </Text>
         <View style={styles.row}>
           <Button

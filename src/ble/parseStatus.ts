@@ -1,10 +1,11 @@
 /**
  * 펌웨어 statusCharacteristic 문자열을 해석합니다.
  *
- * 주기 상태:  "STOP POS:1234 SW:0", "FWD POS:...", "HOME POS:...", "FAULT POS:..."
- * 이벤트:    "WATER_POS:1234", "HOME OK POS:0", "HOME SETTLE POS:12", "MOVE OK:500",
+ * 주기 상태:  "STOP POS:1234 SW:0 TIME:00:00:00", "WATER POS:...", "FAULT POS:..."
+ * 이벤트:    "WATER_ON POS:1234", "WATER_STOP POS:1234", "WATER_FULL POS:0",
+ *            "WATER_POS:1234", "HOME OK POS:0", "HOME SETTLE POS:12", "MOVE OK:500",
  *            "FAULT LIMIT POS:-31", "FAULT ACTIVE", "SET POS:100", "SET ERROR", "MOVE ERROR",
- *            "TEST_FWD POS:0", "ADJ S:.. T:..", "ADJ CANCEL POS:.. SW:0", "HOME STOP POS:.."
+ *            "TEST_FWD POS:0", "ADJ S:.. T:..", "HOME STOP POS:.."
  */
 export type FlowerMotorState =
   | 'STOP'
@@ -16,6 +17,8 @@ export type FlowerMotorState =
   | 'MOVE_REV'
   | 'HOME_ADJ'
   | 'HOME_SETTLE'
+  | 'WATER'
+  | 'WATER_ADJ'
   | 'FAULT'
   | 'UNKNOWN';
 
@@ -41,6 +44,8 @@ const PERIODIC: FlowerMotorState[] = [
   'MOVE_REV',
   'HOME_ADJ',
   'HOME_SETTLE',
+  'WATER',
+  'WATER_ADJ',
   'FAULT',
 ];
 
@@ -70,6 +75,23 @@ export function parseStatus(raw: string): FlowerStatus {
   if (water) {
     status.waterPos = Number(water[1]);
     status.pos = status.waterPos;
+    return status;
+  }
+
+  if (text.startsWith('WATER_ON')) {
+    status.motor = 'WATER';
+    return status;
+  }
+
+  if (text.startsWith('WATER_STOP')) {
+    status.motor = 'STOP';
+    return status;
+  }
+
+  if (text.startsWith('WATER_FULL')) {
+    status.homeOk = true;
+    status.motor = 'STOP';
+    status.pos = 0;
     return status;
   }
 

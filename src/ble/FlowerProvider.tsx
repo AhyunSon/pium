@@ -22,9 +22,9 @@ type FlowerValue = {
   stale: boolean;
   /** 로봇이 마지막으로 "활짝 핌"(HOME OK 또는 위치 0 정지)을 알린 시각. Blooming → Bloomed 전환에 쓴다 */
   lastBloomedAt: number | null;
-  connect: () => Promise<ConnectionState>;
+  connect: () => Promise<{ state: ConnectionState; error: string | null }>;
   disconnect: () => Promise<void>;
-  send: (command: FlowerCommand) => Promise<void>;
+  send: (command: FlowerCommand, opts?: { wait?: boolean }) => Promise<void>;
   /** RESET 전송 후 WATER_POS 응답을 기다립니다. */
   water: () => Promise<WaterResult>;
 };
@@ -86,13 +86,29 @@ export function FlowerProvider({ children }: { children: ReactNode }) {
   }, [connection, lastSeenAt]);
 
   const connect = useCallback(async () => {
+    let error: string | null = null;
+    const off = client.onError((m) => {
+      error = m;
+    });
     setLastError(null);
-    await client.connect(appState.settings.deviceName);
-    return client.getState();
-  }, [client, appState.settings.deviceName]);
+    try {
+      await client.connect(appState.settings.deviceName);
+    } finally {
+      off();
+    }
+    if (error) setLastError(error);
+    if (client.getState() === 'connected') {
+      try {
+        await client.send(`SETTIME:${appState.settings.fallHours}`);
+      } catch {
+        /* 낙화 시간은 다음 저장 때 다시 보냄 */
+      }
+    }
+    return { state: client.getState(), error };
+  }, [client, appState.settings.deviceName, appState.settings.fallHours]);
 
   const disconnect = useCallback(() => client.disconnect(), [client]);
-  const send = useCallback((c: FlowerCommand) => client.send(c), [client]);
+  const send = useCallback((c: FlowerCommand, opts?: { wait?: boolean }) => client.send(c, opts), [client]);
 
   const water = useCallback(async (): Promise<WaterResult> => {
     if (client.getState() !== 'connected') {

@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "cross-env": "^10.1.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
     "react-native-svg-transformer": "^1.5.3",
@@ -35,7 +36,9 @@
   },
   "scripts": {
     "start": "expo start",
+    "start:workshop": "cross-env APP_VARIANT=workshop expo start",
     "android": "expo run:android",
+    "android:workshop": "cross-env APP_VARIANT=workshop expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"

@@ -30,7 +30,9 @@
       "permissions": [
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT"
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -50,7 +52,8 @@
       [
         "@sfourdrinier/react-native-ble-plx",
         {
-          "bluetoothAlwaysPermission": "화분 로봇과 연결합니다."
+          "bluetoothAlwaysPermission": "화분 로봇과 연결합니다.",
+          "neverForLocation": true
         }
       ]
     ],

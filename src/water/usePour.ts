@@ -8,12 +8,13 @@ import {
   useFrameCallback,
   useSharedValue,
 } from 'react-native-reanimated';
+import { BLOOMED_POUR_MS, FULL_POUR_MS } from '../ble/constants';
 
 /** 이 각도부터 물이 빠져나가기 시작, 이 각도에서 최대 */
 const POUR_START_DEG = 38;
 const POUR_FULL_DEG = 110;
-const FULL_POUR_MS = 5200;
 const HAPTIC_INTERVAL_MS = 320;
+const HAPTIC_BLOOM_INTERVAL_MS = 720;
 /** 화면 들어오면 이 시간 동안은 가만히. 든 자세로 맞춘 뒤 따라감 */
 const SETTLE_MS = 700;
 
@@ -22,12 +23,14 @@ type PourOptions = {
   gyTarget: SharedValue<number>;
   pourDeg: SharedValue<number>;
   enabled: boolean;
+  /** 꽃이 다 핌. 물은 계속 줄 수 있고 진동만 약해짐 */
+  bloomed?: boolean;
   onComplete: (pourDurationMs: number) => void;
 };
 
 type CompleteBox = { fn: (ms: number) => void };
 
-export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: PourOptions) {
+export function usePour({ gxTarget, gyTarget, pourDeg, enabled, bloomed = false, onComplete }: PourOptions) {
   const fill = useSharedValue(0);
   const gx = useSharedValue(0);
   const gy = useSharedValue(1);
@@ -35,14 +38,14 @@ export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: Po
   const gyVel = useSharedValue(0);
   const phase = useSharedValue(0);
   const slosh = useSharedValue(0);
-  const pressPour = useSharedValue(0);
   const strength = useSharedValue(0);
   const hapticAcc = useSharedValue(0);
-  const done = useSharedValue(false);
   const pourMs = useSharedValue(0);
+  const done = useSharedValue(false);
   const active = useSharedValue(false);
   const armed = useSharedValue(0);
   const settleAcc = useSharedValue(0);
+  const bloomedSv = useSharedValue(0);
 
   const [percent, setPercent] = useState(0);
   const [pouring, setPouring] = useState(false);
@@ -68,8 +71,13 @@ export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: Po
     })(enabled);
   }, [enabled, active, armed, settleAcc, gx, gy, gxVel, gyVel, slosh]);
 
-  const tick = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  useEffect(() => {
+    bloomedSv.value = bloomed ? 1 : 0;
+  }, [bloomed, bloomedSv]);
+
+  const tick = useCallback((soft: boolean) => {
+    const style = soft ? Haptics.ImpactFeedbackStyle.Soft : Haptics.ImpactFeedbackStyle.Light;
+    Haptics.impactAsync(style).catch(() => {});
   }, []);
 
   const finish = useCallback((ms: number) => {
@@ -81,30 +89,21 @@ export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: Po
     const dt = Math.min(0.05, (info.timeSincePreviousFrame ?? 16) / 1000);
 
     if (armed.value < 1) {
-      if (pressPour.value > 0.5) {
-        armed.value = 1;
-      } else {
-        settleAcc.value += dt * 1000;
-        gx.value = 0;
-        gy.value = 1;
-        gxVel.value = 0;
-        gyVel.value = 0;
-        slosh.value = 0;
-        strength.value = 0;
-        if (settleAcc.value < SETTLE_MS) return;
-        gx.value = gxTarget.value;
-        gy.value = gyTarget.value;
-        armed.value = 1;
-      }
+      settleAcc.value += dt * 1000;
+      gx.value = 0;
+      gy.value = 1;
+      gxVel.value = 0;
+      gyVel.value = 0;
+      slosh.value = 0;
+      strength.value = 0;
+      if (settleAcc.value < SETTLE_MS) return;
+      gx.value = gxTarget.value;
+      gy.value = gyTarget.value;
+      armed.value = 1;
     }
 
-    let tx = gxTarget.value;
-    let ty = gyTarget.value;
-    // 센서 없이 길게 누르면 왼쪽으로 기울인 것처럼
-    if (pressPour.value > 0.5) {
-      tx += (-0.85 - tx) * 0.12;
-      ty += (0.2 - ty) * 0.12;
-    }
+    const tx = gxTarget.value;
+    const ty = gyTarget.value;
 
     const stiffness = 80;
     const damping = 10;
@@ -123,22 +122,23 @@ export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: Po
       return;
     }
 
-    const deg = pressPour.value > 0.5 ? POUR_FULL_DEG * 0.7 : pourDeg.value;
+    const deg = pourDeg.value;
     // 남은 물이 적을수록 더 눕혀야 흐름. 컵 바닥의 마지막 한 모금처럼.
     const empty = fill.value * fill.value;
     const startDeg = POUR_START_DEG + empty * 50;
     const span = Math.max(20, POUR_FULL_DEG - startDeg);
-    const sensor = Math.max(0, Math.min(1, (deg - startDeg) / span));
-    const s = Math.max(sensor, pressPour.value * 0.7);
+    const s = Math.max(0, Math.min(1, (deg - startDeg) / span));
     strength.value = s;
 
     if (s > 0) {
       pourMs.value += dt * 1000;
-      fill.value = Math.min(1, fill.value + (s * dt * 1000) / FULL_POUR_MS);
+      const pourMsNow = bloomedSv.value > 0.5 ? BLOOMED_POUR_MS : FULL_POUR_MS;
+      fill.value = Math.min(1, fill.value + (s * dt * 1000) / pourMsNow);
       hapticAcc.value += dt * 1000;
-      if (hapticAcc.value >= HAPTIC_INTERVAL_MS / (0.5 + s)) {
+      const interval = bloomedSv.value > 0.5 ? HAPTIC_BLOOM_INTERVAL_MS : HAPTIC_INTERVAL_MS / (0.5 + s);
+      if (hapticAcc.value >= interval) {
         hapticAcc.value = 0;
-        runOnJS(tick)();
+        runOnJS(tick)(bloomedSv.value > 0.5);
       }
       if (fill.value >= 1) {
         done.value = true;
@@ -168,7 +168,6 @@ export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: Po
       done.value = false;
       pourMs.value = 0;
       hapticAcc.value = 0;
-      pressPour.value = 0;
       gx.value = 0;
       gy.value = 1;
       gxVel.value = 0;
@@ -178,17 +177,18 @@ export function usePour({ gxTarget, gyTarget, pourDeg, enabled, onComplete }: Po
       settleAcc.value = 0;
     })();
     setPercent(0);
-  }, [fill, done, pourMs, hapticAcc, pressPour, gx, gy, gxVel, gyVel, slosh, armed, settleAcc]);
+  }, [fill, done, pourMs, hapticAcc, gx, gy, gxVel, gyVel, slosh, armed, settleAcc]);
 
-  const setPressPour = useCallback(
-    (on: boolean) => {
-      runOnUI((v: number) => {
-        'worklet';
-        pressPour.value = v;
-      })(on ? 1 : 0);
-    },
-    [pressPour],
+  const takeDurationMs = useCallback(
+    () =>
+      new Promise<number>((resolve) => {
+        runOnUI(() => {
+          'worklet';
+          runOnJS(resolve)(Math.round(pourMs.value));
+        })();
+      }),
+    [pourMs],
   );
 
-  return { fill, gx, gy, phase, slosh, percent, pouring, reset, setPressPour };
+  return { fill, gx, gy, phase, slosh, percent, pouring, reset, takeDurationMs };
 }
