@@ -48,7 +48,9 @@ export default function SosScreen() {
         text: '삭제',
         style: 'destructive',
         onPress: async () => {
+          await flower.disconnect().catch(() => {});
           await resetAll();
+          flower.recycle();
           router.replace('/onboarding');
         },
       },

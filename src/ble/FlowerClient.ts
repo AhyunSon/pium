@@ -29,6 +29,8 @@ export interface FlowerClient {
   onStatus(listener: Listener<FlowerStatus>): () => void;
   onError(listener: Listener<string>): () => void;
   getState(): ConnectionState;
+  /** 시스템 블루투스 권한 창을 기존 매니저로 띄웁니다. 두 번째 BleManager를 만들지 않습니다. */
+  warmUp(): Promise<void>;
   connect(deviceName: string): Promise<void>;
   disconnect(): Promise<void>;
   send(command: FlowerCommand, opts?: { wait?: boolean }): Promise<void>;
@@ -66,52 +68,24 @@ function loadBlePlx(): BlePlxModule | null {
   }
 }
 
-/** 온보딩 권한 화면에서 미리 물어볼 때 씁니다. 연결 때도 같은 함수를 다시 거칩니다. */
+/** 온보딩·연결 시 Android 런타임 권한. iOS는 기존 BleManager.warmUp()이 시스템 창을 띄웁니다. */
 export async function requestBluetoothPermissions(): Promise<boolean> {
+  if (Platform.OS === 'ios') return true;
   return ensureAndroidPermissions();
 }
 
 async function ensureAndroidPermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') return true;
   const api = Number(Platform.Version);
-  try {
-    if (api >= 31) {
-      const res = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      ]);
-      const scanOk = res[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === PermissionsAndroid.RESULTS.GRANTED;
-      const connOk = res[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED;
-      return scanOk && connOk;
-    }
-    const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
-    return res === PermissionsAndroid.RESULTS.GRANTED;
-  } catch {
-    return false;
+  if (api >= 31) {
+    const res = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+    ]);
+    return Object.values(res).every((v) => v === PermissionsAndroid.RESULTS.GRANTED);
   }
-}
-
-function normUuid(u: string) {
-  return u.replace(/-/g, '').toLowerCase();
-}
-
-function advertisedNames(device: { name?: string | null; localName?: string | null }) {
-  return [device.name, device.localName].filter((n): n is string => !!n && n.length > 0);
-}
-
-function hasFlowerService(device: { serviceUUIDs?: string[] | null; overflowServiceUUIDs?: string[] | null }) {
-  const want = normUuid(FLOWER_SERVICE_UUID);
-  const uuids = [...(device.serviceUUIDs ?? []), ...(device.overflowServiceUUIDs ?? [])];
-  return uuids.some((u) => normUuid(u) === want);
-}
-
-function matchRank(device: { name?: string | null; localName?: string | null; serviceUUIDs?: string[] | null; overflowServiceUUIDs?: string[] | null }, wantName: string) {
-  const names = advertisedNames(device);
-  if (names.some((n) => n === wantName)) return 2;
-  if (names.some((n) => n.startsWith('C33_FLOWER'))) return 1;
-  if (hasFlowerService(device)) return 1;
-  return 0;
+  const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+  return res === PermissionsAndroid.RESULTS.GRANTED;
 }
 
 class BleFlowerClient implements FlowerClient {
@@ -126,6 +100,8 @@ class BleFlowerClient implements FlowerClient {
   private disconnectSub: { remove: () => void } | null = null;
   private stateSub: { remove: () => void } | null = null;
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private scanFinish: ((id: string | null) => void) | null = null;
+  private connectGen = 0;
 
   constructor(private mod: BlePlxModule) {
     this.manager = new mod.BleManager();
@@ -163,103 +139,115 @@ class BleFlowerClient implements FlowerClient {
     this.setState(state);
   }
 
-  private async waitPoweredOn(ms = 5000): Promise<'on' | 'off' | 'timeout'> {
-    const now = await this.manager.state();
-    if (now === 'PoweredOn') return 'on';
-    if (now === 'PoweredOff') return 'off';
-    if (now === 'Unauthorized') return 'off';
-    return await new Promise((resolve) => {
-      const timer = setTimeout(() => {
+  async warmUp(): Promise<void> {
+    await this.waitBleState();
+  }
+
+  private waitBleState(): Promise<string> {
+    return new Promise((resolve) => {
+      let done = false;
+      let sub: { remove: () => void } = { remove: () => {} };
+      const finish = (s: string) => {
+        if (done) return;
+        done = true;
         sub.remove();
-        resolve('timeout');
-      }, ms);
-      const sub = this.manager.onStateChange((s) => {
-        if (s === 'PoweredOn') {
-          clearTimeout(timer);
-          sub.remove();
-          resolve('on');
-        } else if (s === 'PoweredOff' || s === 'Unauthorized') {
-          clearTimeout(timer);
-          sub.remove();
-          resolve('off');
-        }
+        resolve(s);
+      };
+      sub = this.manager.onStateChange((s) => {
+        if (s !== 'Unknown' && s !== 'Resetting') finish(s);
       }, true);
+      this.manager
+        .state()
+        .then((s) => {
+          if (s !== 'Unknown' && s !== 'Resetting') finish(s);
+        })
+        .catch(() => {});
+      setTimeout(() => {
+        this.manager
+          .state()
+          .then((s) => finish(s))
+          .catch(() => finish('Unknown'));
+      }, 4000);
     });
   }
 
-  private async scanOnce(uuids: string[] | null, deviceName: string, ms: number): Promise<string | null> {
-    await this.manager.stopDeviceScan().catch(() => {});
+  private abortScan() {
+    const finish = this.scanFinish;
+    this.scanFinish = null;
     if (this.scanTimer) {
       clearTimeout(this.scanTimer);
       this.scanTimer = null;
     }
-    return await new Promise<string | null>((resolve) => {
+    this.manager.stopDeviceScan().catch(() => {});
+    finish?.(null);
+  }
+
+  async connect(deviceName: string): Promise<void> {
+    this.connectGen += 1;
+    const gen = this.connectGen;
+    this.abortScan();
+    if (this.deviceId) {
+      await this.manager.cancelDeviceConnection(this.deviceId).catch(() => {});
+      this.cleanupDevice();
+    }
+
+    if (Platform.OS === 'android') {
+      const granted = await ensureAndroidPermissions();
+      if (!granted) {
+        this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
+        return;
+      }
+    }
+    if (gen !== this.connectGen) return;
+
+    const bleState = await this.waitBleState();
+    if (gen !== this.connectGen) return;
+    if (bleState === 'PoweredOff') {
+      this.fail('블루투스를 켜 주세요.', 'poweredOff');
+      return;
+    }
+    if (bleState === 'Unauthorized') {
+      this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
+      return;
+    }
+
+    this.setState('scanning');
+    await this.manager.stopDeviceScan().catch(() => {});
+    if (gen !== this.connectGen) return;
+
+    const found = await new Promise<string | null>((resolve) => {
       let settled = false;
-      let fallback: { id: string; rank: number } | null = null;
       const finish = (id: string | null) => {
         if (settled) return;
         settled = true;
+        this.scanFinish = null;
         if (this.scanTimer) clearTimeout(this.scanTimer);
         this.scanTimer = null;
         this.manager.stopDeviceScan().catch(() => {});
         resolve(id);
       };
-      this.scanTimer = setTimeout(() => finish(fallback?.id ?? null), ms);
+      this.scanFinish = finish;
+      this.scanTimer = setTimeout(() => finish(null), SCAN_TIMEOUT_MS);
+      // iOS는 광고에 서비스 UUID가 없으면 필터 스캔이 전부 빠집니다. 이름으로 거릅니다.
+      const scanUuids = Platform.OS === 'ios' ? null : [FLOWER_SERVICE_UUID];
       this.manager
-        .startDeviceScan(uuids, { allowDuplicates: true }, (error, device) => {
-          if (settled) return;
+        .startDeviceScan(scanUuids, { allowDuplicates: false }, (error, device) => {
           if (error) {
             this.errorEmitter.emit(error.message);
-            finish(fallback?.id ?? null);
+            finish(null);
             return;
           }
           if (!device) return;
-          const rank = matchRank(device, deviceName);
-          if (rank >= 2) {
-            finish(device.id);
-            return;
-          }
-          if (rank > 0 && (!fallback || rank > fallback.rank)) fallback = { id: device.id, rank };
+          const name = device.name ?? device.localName ?? '';
+          if (name === deviceName || name.startsWith('C33_FLOWER')) finish(device.id);
         })
         .catch((e: Error) => {
           this.errorEmitter.emit(e.message);
-          finish(fallback?.id ?? null);
+          finish(null);
         });
     });
-  }
 
-  private async scanForDevice(deviceName: string): Promise<string | null> {
-    const first = await this.scanOnce([FLOWER_SERVICE_UUID], deviceName, SCAN_TIMEOUT_MS);
-    if (first) return first;
-    return this.scanOnce(null, deviceName, SCAN_TIMEOUT_MS);
-  }
-
-  async connect(deviceName: string): Promise<void> {
-    if (this.state === 'scanning' || this.state === 'connecting') {
-      await this.manager.stopDeviceScan().catch(() => {});
-      if (this.scanTimer) {
-        clearTimeout(this.scanTimer);
-        this.scanTimer = null;
-      }
-    }
-    const granted = await ensureAndroidPermissions();
-    if (!granted) {
-      this.fail('블루투스 권한이 필요합니다.', 'unauthorized');
-      return;
-    }
-    const power = await this.waitPoweredOn();
-    if (power === 'off') {
-      this.fail('블루투스가 꺼져 있습니다.', 'poweredOff');
-      return;
-    }
-    if (power === 'timeout') {
-      this.fail('블루투스를 준비하지 못했습니다.', 'error');
-      return;
-    }
-
-    this.setState('scanning');
-    const found = await this.scanForDevice(deviceName);
-
+    if (gen !== this.connectGen) return;
     if (!found) {
       this.setState('notFound');
       return;
@@ -305,6 +293,11 @@ class BleFlowerClient implements FlowerClient {
         // notify로 곧 옵니다
       }
 
+      if (gen !== this.connectGen) {
+        this.cleanupDevice();
+        await this.manager.cancelDeviceConnection(found).catch(() => {});
+        return;
+      }
       this.setState('connected');
     } catch (e) {
       this.cleanupDevice();
@@ -321,6 +314,8 @@ class BleFlowerClient implements FlowerClient {
   }
 
   async disconnect(): Promise<void> {
+    this.connectGen += 1;
+    this.abortScan();
     const id = this.deviceId;
     this.cleanupDevice();
     if (id) await this.manager.cancelDeviceConnection(id).catch(() => {});
@@ -329,13 +324,12 @@ class BleFlowerClient implements FlowerClient {
 
   async send(command: FlowerCommand, opts?: { wait?: boolean }): Promise<void> {
     if (!this.deviceId) throw new Error('기기가 연결되어 있지 않습니다.');
-    const payload = encodeBase64(command);
     if (opts?.wait === false) {
       await this.manager.writeCharacteristicWithoutResponseForDevice(
         this.deviceId,
         FLOWER_SERVICE_UUID,
         FLOWER_COMMAND_UUID,
-        payload,
+        encodeBase64(command),
       );
       return;
     }
@@ -343,14 +337,15 @@ class BleFlowerClient implements FlowerClient {
       this.deviceId,
       FLOWER_SERVICE_UUID,
       FLOWER_COMMAND_UUID,
-      payload,
+      encodeBase64(command),
     );
   }
 
   destroy() {
+    this.connectGen += 1;
+    this.abortScan();
     this.cleanupDevice();
     this.stateSub?.remove();
-    if (this.scanTimer) clearTimeout(this.scanTimer);
     this.manager.destroy();
   }
 }
@@ -366,7 +361,7 @@ class MockFlowerClient implements FlowerClient {
   private statusEmitter = new Emitter<FlowerStatus>();
   private errorEmitter = new Emitter<string>();
   private pos = 5200;
-  private motor: 'STOP' | 'HOME' | 'FWD' | 'WATER' = 'STOP';
+  private motor: 'STOP' | 'HOME' | 'FWD' = 'STOP';
   private tick: ReturnType<typeof setInterval> | null = null;
   private lastStep = Date.now();
 
@@ -393,6 +388,8 @@ class MockFlowerClient implements FlowerClient {
     this.statusEmitter.emit(parseStatus(`${this.motor} POS:${this.pos} SW:${sw}`));
   }
 
+  async warmUp(): Promise<void> {}
+
   async connect(): Promise<void> {
     if (this.state === 'connected') return;
     this.setState('scanning');
@@ -402,7 +399,7 @@ class MockFlowerClient implements FlowerClient {
     this.setState('connected');
     this.tick = setInterval(() => {
       const now = Date.now();
-      if (this.motor === 'HOME' || this.motor === 'WATER') {
+      if (this.motor === 'HOME') {
         this.pos = Math.max(0, this.pos - 400);
         if (this.pos === 0) {
           this.motor = 'STOP';
@@ -432,23 +429,12 @@ class MockFlowerClient implements FlowerClient {
       this.motor = 'HOME';
       return;
     }
-    if (command === 'WATER_START') {
-      if (this.pos <= 0) {
-        this.statusEmitter.emit(parseStatus('WATER_FULL POS:0'));
-        return;
-      }
-      this.motor = 'WATER';
-      this.statusEmitter.emit(parseStatus(`WATER_ON POS:${this.pos}`));
-      return;
-    }
-    if (command === 'WATER_STOP') {
-      this.motor = 'STOP';
-      this.statusEmitter.emit(parseStatus(`WATER_STOP POS:${this.pos}`));
-      return;
-    }
     if (command.startsWith('SETPOS:')) {
       this.pos = Number(command.slice(7));
       this.statusEmitter.emit(parseStatus(`SET POS:${this.pos}`));
+      return;
+    }
+    if (command.startsWith('SETTIME:')) {
       return;
     }
     if (command.startsWith('MOVEPOS:')) {

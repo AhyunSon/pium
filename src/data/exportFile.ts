@@ -5,7 +5,13 @@ import type { AppState } from './types';
 
 async function writeText(file: File, text: string) {
   file.create({ overwrite: true, intermediates: true });
-  await Promise.resolve(file.write(text));
+  // Expo SDK 58: File.write() is async (was sync in 57). Prefer writeSync when present.
+  const syncWrite = (file as File & { writeSync?: (t: string) => void }).writeSync;
+  if (typeof syncWrite === 'function') {
+    syncWrite.call(file, text);
+    return;
+  }
+  await file.write(text);
 }
 
 /** 기록 CSV를 폰에 쓰고 공유 시트를 엽니다. 파일 경로를 돌려줍니다. */
@@ -40,7 +46,13 @@ export function writeLocalSnapshot(state: AppState): void {
   try {
     const file = new File(Paths.document, 'pium-latest.csv');
     file.create({ overwrite: true, intermediates: true });
-    file.write(buildCsv(state));
+    const csv = buildCsv(state);
+    const syncWrite = (file as File & { writeSync?: (t: string) => void }).writeSync;
+    if (typeof syncWrite === 'function') {
+      syncWrite.call(file, csv);
+    } else {
+      void file.write(csv).catch(() => {});
+    }
   } catch {
     // 저장 실패는 조용히 넘어갑니다. AsyncStorage 원본은 따로 있습니다.
   }

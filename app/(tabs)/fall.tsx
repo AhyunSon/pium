@@ -143,7 +143,7 @@ export default function FallTimeScreen() {
 
   return (
     <View style={styles.page}>
-      <Screen nav={{ left: 'back', onLeft: () => router.navigate('/home') }}>
+      <Screen nav={{ left: 'back', onLeft: () => router.navigate('/(tabs)/home') }}>
         <View
           style={styles.body}
           onStartShouldSetResponder={() => typing}

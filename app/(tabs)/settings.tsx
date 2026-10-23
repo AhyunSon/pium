@@ -37,7 +37,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <Screen scroll nav={{ left: 'back', onLeft: () => router.navigate('/home') }}>
+    <Screen scroll nav={{ left: 'back', onLeft: () => router.navigate('/(tabs)/home') }}>
       <Title title="설정" subtitle="프로필과 기록을 확인할 수 있어요." />
       <View style={styles.stack}>
         <View style={styles.card}>

@@ -13,7 +13,7 @@ export default function SplashScreen() {
   useEffect(() => {
     if (!hydrated) return;
     const timer = setTimeout(() => {
-      router.replace(state.profile ? '/home' : '/onboarding');
+      router.replace(state.profile ? '/(tabs)/home' : '/onboarding');
     }, 900);
     return () => clearTimeout(timer);
   }, [hydrated, state.profile, router]);

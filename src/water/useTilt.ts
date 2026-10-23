@@ -1,4 +1,4 @@
-import { DeviceMotion } from 'expo-sensors';
+import { DeviceMotion, Gravity as DeviceMotionGravity } from 'expo-sensors';
 import { useEffect, useState } from 'react';
 import { SharedValue, useSharedValue } from 'react-native-reanimated';
 
@@ -7,7 +7,7 @@ import { SharedValue, useSharedValue } from 'react-native-reanimated';
  * 0° = 세움, 90° = 옆으로 눕힘, 120° = 그 너머.
  * 왼쪽이 아래로 가면 물이 왼쪽으로 모임 → 수면(수평)은 오른쪽에.
  */
-const G = DeviceMotion.Gravity || 9.80665;
+const G = DeviceMotionGravity || DeviceMotion.Gravity || 9.80665;
 const FOLLOW = 0.28;
 /** 책상 위처럼 화면이 하늘을 보면 좌우 성분이 거의 없음 */
 const FLAT_G = 0.35 * G;

@@ -1,7 +1,6 @@
 import { Tabs } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/build/layouts/Tabs';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/theme/colors';
 import {
   TabFallOffIcon,
@@ -22,9 +21,13 @@ const TAB_META: Record<string, { label: string; on: typeof TabHomeOnIcon; off: t
   settings: { label: '설정', on: TabSettingOnIcon, off: TabSettingOffIcon },
 };
 
-function BottomNav({ state, navigation }: BottomTabBarProps) {
-  const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 8);
+/**
+ * Expo Router 58 커스텀 탭바.
+ * - 예전: navigation.emit / navigation.navigate (SDK 57)
+ * - 지금: emitter.emit / navigateToTab(route.key)
+ */
+function BottomNav({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
+  const bottomInset = Math.max(insets?.bottom ?? 0, 8);
 
   return (
     <View style={[styles.bar, { height: TAB_BAR_HEIGHT + bottomInset, paddingBottom: bottomInset + 4 }]}>
@@ -39,8 +42,14 @@ function BottomNav({ state, navigation }: BottomTabBarProps) {
             accessibilityRole="button"
             accessibilityState={focused ? { selected: true } : {}}
             onPress={() => {
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              const event = emitter?.emit?.({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused && !event?.defaultPrevented) {
+                navigateToTab?.(route.key);
+              }
             }}
             style={styles.tab}
           >
@@ -53,10 +62,13 @@ function BottomNav({ state, navigation }: BottomTabBarProps) {
   );
 }
 
+export const unstable_settings = {
+  initialRouteName: 'home',
+};
+
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="home"
       backBehavior="initialRoute"
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
       tabBar={(props) => <BottomNav {...props} />}

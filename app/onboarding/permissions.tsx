@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ReactNode, useState } from 'react';
 import { PermissionsAndroid, Platform, StyleSheet, Text, View } from 'react-native';
 import { requestBluetoothPermissions } from '../../src/ble/FlowerClient';
+import { useFlower } from '../../src/ble/FlowerProvider';
 import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
 import { Title } from '../../src/components/Title';
@@ -19,6 +20,7 @@ export default function PermissionsScreen() {
   const params = useLocalSearchParams<{ name?: string; ageGroup?: string; deviceNumber?: string }>();
   const { draft } = useOnboardingDraft();
   const { saveProfile } = useStore();
+  const flower = useFlower();
   const [busy, setBusy] = useState(false);
 
   const param = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';
@@ -32,6 +34,7 @@ export default function PermissionsScreen() {
     try {
       // 거부해도 막지 않는다. 홈/물주기에서 필요할 때 다시 묻는다.
       await requestBluetoothPermissions().catch(() => false);
+      await flower.warmUp().catch(() => {});
       if (Platform.OS === 'android' && Number(Platform.Version) >= 29) {
         await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION).catch(() => null);
       }
@@ -46,7 +49,7 @@ export default function PermissionsScreen() {
       ageGroup,
       deviceNumber: (param(params.deviceNumber) || draft.deviceNumber).trim(),
     });
-    router.replace('/home');
+    router.replace('/(tabs)/home');
   };
 
   return (

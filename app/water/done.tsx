@@ -12,14 +12,14 @@ export default function WaterDoneScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <TopNav left="back" light onLeft={() => router.replace('/home')} />
+      <TopNav left="back" light onLeft={() => router.replace('/(tabs)/home')} />
       <View style={styles.contents}>
         <View style={styles.topBlock}>
           <Text style={styles.title}>FIUM에게 물주기가 완료됐어요</Text>
           <Text style={styles.sub}>다시 주려면 홈에서 물주기를 선택해주세요</Text>
           <Text style={styles.waterLabel}>Water</Text>
         </View>
-        <Button variant="blue" label="홈으로 가기" onPress={() => router.replace('/home')} />
+        <Button variant="blue" label="홈으로 가기" onPress={() => router.replace('/(tabs)/home')} />
       </View>
       <View style={{ height: 56 + insets.bottom }} />
     </View>
